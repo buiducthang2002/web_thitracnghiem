@@ -563,40 +563,67 @@ const EmployeesView = ({employees, setEmployees, results, exams}) => {
     closeModal();
   };
 
-  const handleImport = (e) => {
-    const file = e.target.files[0]; if(!file) return;
-    setImporting(true);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const wb = XLSX.read(ev.target.result, {type:'binary'});
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
-        const added = []; const skipped = [];
-        rows.forEach(row => {
-          const name = (row['Họ và tên']||row['Ho va ten']||row['Name']||row['Tên']||'').toString().trim();
-          const dept = (row['Phòng ban']||row['Phong ban']||row['Department']||row['Bộ phận']||'').toString().trim();
-          if(!name) { skipped.push('(dòng trống)'); return; }
-          if(employees.find(e=>e.name.toLowerCase()===name.toLowerCase())) { skipped.push(`${name} (trùng)`); return; }
-          added.push({id:Date.now()+Math.random(), name, dept:dept||'Chưa phân công'});
-        });
-        if(added.length>0) setEmployees(p=>[...p,...added]);
-        setImportResult({added:added.length, skipped:skipped.length, names:added.map(e=>e.name)});
-      } catch { setImportResult({error:'Không đọc được file. Vui lòng kiểm tra định dạng.'}); }
-      setImporting(false);
-    };
-    reader.readAsBinaryString(file);
-    e.target.value='';
-  };
+ const handleImport = (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  setImporting(true);
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const wb = XLSX.read(ev.target.result, {type:'binary'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:'', header:1});
+      const added = [];
+      const skipped = [];
 
-  const downloadTemplate = () => {
-    const ws = XLSX.utils.aoa_to_sheet([['Họ và tên','Phòng ban'],['Nguyễn Thị A','Kinh doanh'],['Trần Văn B','Kế toán']]);
-    ws['!cols']=[{wch:25},{wch:20}];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Nhân viên');
-    XLSX.writeFile(wb, 'mau_import_nhan_vien.xlsx');
-  };
+      // Tìm index cột Họ và tên, Đơn vị
+      let colName = -1, colDept = -1;
+      for(let i = 0; i < Math.min(5, rows.length); i++) {
+        const row = rows[i].map(c => String(c).trim().toLowerCase());
+        const ni = row.findIndex(c => c.includes('họ') || c.includes('tên') || c === 'name');
+        const di = row.findIndex(c => c.includes('đơn vị') || c.includes('phòng') || c.includes('dept') || c.includes('khoa'));
+        if(ni !== -1) { colName = ni; colDept = di !== -1 ? di : ni+1; break; }
+      }
+      if(colName === -1) { colName = 1; colDept = 2; }
 
+      rows.forEach(row => {
+        const nameRaw = String(row[colName]||'').trim();
+        const deptRaw = String(colDept >= 0 ? (row[colDept]||'') : '').trim();
+        if(!nameRaw) return;
+        if(nameRaw.toUpperCase().includes('KHỐI')) return;
+        if(nameRaw.toLowerCase().includes('họ và tên') || nameRaw.toLowerCase() === 'name') return;
+        const dup = employees.find(e => e.name.toLowerCase() === nameRaw.toLowerCase());
+        if(dup) { skipped.push(`${nameRaw} (trùng)`); return; }
+        added.push({id: Date.now() + Math.random(), name: nameRaw, dept: deptRaw || 'Chưa phân công'});
+      });
+
+      if(added.length > 0) setEmployees(p => [...p, ...added]);
+      setImportResult({added: added.length, skipped: skipped.length, names: added.map(e=>e.name)});
+      setTimeout(() => setImportResult(null), 3000);
+    } catch(err) {
+      setImportResult({error: 'Không đọc được file. Vui lòng kiểm tra định dạng.'});
+    }
+    setImporting(false);
+  };
+  reader.readAsBinaryString(file);
+  e.target.value = '';
+};
+
+const downloadTemplate = () => {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['TT', 'Họ và tên', 'Đơn vị'],
+    ['KHỐI CƠ QUAN', '', ''],
+    [1, 'Nguyễn Thị A', 'Phòng KHTH'],
+    [2, 'Trần Văn B', 'Ban ĐD'],
+    ['KHỐI NỘI', '', ''],
+    [3, 'Lê Thị C', 'Khoa A1'],
+    [4, 'Phạm Văn D', 'Khoa A2'],
+  ]);
+  ws['!cols'] = [{wch:6},{wch:25},{wch:20}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Nhân viên');
+  XLSX.writeFile(wb, 'mau_import_nhan_vien.xlsx');
+};
   const [activeDept, setActiveDept] = useState('all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
