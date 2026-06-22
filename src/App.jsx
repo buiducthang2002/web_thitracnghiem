@@ -206,37 +206,55 @@ const Questions = ({questions, setQuestions}) => {
   // Parse text extracted from Word doc
   const parseWordText = (text) => {
     const parsed = [];
-    // Split by "Câu" marker
-    const blocks = text.split(/\n(?=Câu\s*\d+[\.\:\)]\s*)/i).filter(b=>b.trim());
+    let skipped = 0;
+    // Normalize line breaks then split into blocks at each "Câu N" marker
+    const norm = text.replace(/\r\n?/g, '\n');
+    const blocks = norm.split(/\n(?=\s*Câu\s*\d+\s*[\.\:\)])/i).filter(b=>b.trim());
     for(const block of blocks) {
       const lines = block.split('\n').map(l=>l.trim()).filter(Boolean);
-      if(lines.length < 5) continue;
-      // Question text: first line, strip "Câu N:" prefix
-      const qText = lines[0].replace(/^Câu\s*\d+[\.\:\)]\s*/i,'').trim();
-      if(!qText) continue;
+      if(lines.length < 2) { skipped++; continue; }
+
       const opts = [];
       let ansIdx = -1;
       let topic = 'Nội quy';
       let level = 'Dễ';
+      let qParts = [];
+      // "cursor" points to where continuation lines get appended:
+      //   'q' = question text, number = option index, null = ignore
+      let cursor = 'q';
+
+      // First line: strip the "Câu N:" prefix, keep any remaining text as question start
+      const firstRest = lines[0].replace(/^\s*Câu\s*\d+\s*[\.\:\)]\s*/i,'').trim();
+      if(firstRest) qParts.push(firstRest);
+
       for(let i=1;i<lines.length;i++){
         const l = lines[i];
-        // Match A. / B. / A) / B) etc
-        const optMatch = l.match(/^([A-Da-d])[\.\)]\s*(.+)/);
-        if(optMatch) { opts.push(optMatch[2].trim()); continue; }
-        // Match answer line: "Đáp án: B" or "ĐA: B"
-        const ansMatch = l.match(/^(?:Đáp\s*án|ĐA)\s*[:\.]\s*([A-Da-d])/i);
-        if(ansMatch) { ansIdx = 'abcd'.indexOf(ansMatch[1].toLowerCase()); continue; }
+        // Option marker: A. / B) / a. ...
+        const optMatch = l.match(/^([A-Da-d])\s*[\.\)]\s*(.*)/);
+        if(optMatch){ opts.push(optMatch[2].trim()); cursor = opts.length-1; continue; }
+        // Answer: "Đáp án: B" / "ĐA: B" / "Đáp án đúng: B"
+        const ansMatch = l.match(/^(?:Đáp\s*án(?:\s*đúng)?|ĐA)\s*[:\.\-]\s*([A-Da-d])/i);
+        if(ansMatch){ ansIdx = 'abcd'.indexOf(ansMatch[1].toLowerCase()); cursor = null; continue; }
         // Topic
-        const topicMatch = l.match(/^Chủ\s*đề\s*[:\.]\s*(.+)/i);
-        if(topicMatch) { topic = topicMatch[1].trim(); continue; }
+        const topicMatch = l.match(/^Chủ\s*đề\s*[:\.\-]\s*(.+)/i);
+        if(topicMatch){ topic = topicMatch[1].trim(); cursor = null; continue; }
         // Level
-        const lvlMatch = l.match(/^Mức\s*độ\s*[:\.]\s*(.+)/i);
-        if(lvlMatch) { level = lvlMatch[1].trim(); continue; }
+        const lvlMatch = l.match(/^Mức\s*độ\s*[:\.\-]\s*(.+)/i);
+        if(lvlMatch){ level = lvlMatch[1].trim(); cursor = null; continue; }
+        // Otherwise it's a continuation of the question or current option (wrapped line)
+        if(cursor === 'q') qParts.push(l);
+        else if(typeof cursor === 'number' && opts[cursor] !== undefined)
+          opts[cursor] = (opts[cursor] + ' ' + l).trim();
       }
-      if(opts.length===4 && ansIdx>=0)
+
+      const qText = qParts.join(' ').trim();
+      // Keep a question if it has text, at least 2 options, and a valid answer index
+      if(qText && opts.length >= 2 && ansIdx >= 0 && ansIdx < opts.length)
         parsed.push({id:Date.now()+Math.random(), text:qText, opts, ans:ansIdx, topic, level});
+      else
+        skipped++;
     }
-    return parsed;
+    return {parsed, skipped};
   };
 
   const handleWordImport = async (e) => {
@@ -245,10 +263,11 @@ const Questions = ({questions, setQuestions}) => {
     try {
       const arrayBuffer = await file.arrayBuffer();
       const result = await mammoth.extractRawText({arrayBuffer});
-      const parsed = parseWordText(result.value);
+      const {parsed, skipped} = parseWordText(result.value);
       if(parsed.length===0){
-        setImportResult({error:'Không tìm thấy câu hỏi nào. Vui lòng kiểm tra lại định dạng file.'});
+        setImportResult({error:'Không tìm thấy câu hỏi hợp lệ nào. Mỗi câu cần có nội dung, tối thiểu 2 đáp án (A, B, ...) và dòng "Đáp án: X". Vui lòng kiểm tra lại định dạng file.'});
       } else {
+        if(skipped>0) setImportResult({error:`Lưu ý: có ${skipped} câu bị bỏ qua do thiếu đáp án hoặc thiếu dòng "Đáp án: X".`});
         setPreviewList(parsed);
       }    } catch(err) {
       setImportResult({error:'Không đọc được file Word. Vui lòng dùng định dạng .docx — lỗi: ' + err.message});
@@ -265,10 +284,9 @@ const Questions = ({questions, setQuestions}) => {
   };
 
   const downloadWordTemplate = () => {
-    // Build a simple text template note — we generate a .txt guidance file
-    const content = `HƯỚNG DẪN ĐỊNH DẠNG FILE WORD IMPORT CÂU HỎI
-=====================================================
-Mỗi câu hỏi viết theo đúng mẫu sau (không bỏ sót dòng nào):
+    // Generate a Word-openable file (HTML-based .doc) with a ready-to-edit sample.
+    const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const body = `HƯỚNG DẪN: Mỗi câu hỏi viết theo đúng mẫu dưới đây (giữ nguyên các dòng). Nội dung câu hỏi hoặc đáp án có thể xuống dòng, hệ thống vẫn đọc đủ.
 
 Câu 1: Nội dung câu hỏi viết ở đây?
 A. Đáp án A
@@ -280,23 +298,25 @@ Chủ đề: Nội quy
 Mức độ: Dễ
 
 Câu 2: Câu hỏi thứ hai?
-A. ...
-B. ...
-C. ...
-D. ...
+A. Đáp án A
+B. Đáp án B
+C. Đáp án C
+D. Đáp án D
 Đáp án: A
 Chủ đề: An toàn lao động
 Mức độ: TB
 
 LƯU Ý:
-- Đáp án điền chữ cái: A, B, C hoặc D
-- Mức độ: Dễ / TB / Khó
-- Chủ đề: điền tên chủ đề bất kỳ
-- Lưu file dưới dạng .docx trước khi import
-`;
-    const blob = new Blob([content], {type:'text/plain;charset=utf-8'});
+- Đáp án điền chữ cái: A, B, C hoặc D (tối thiểu 2 đáp án).
+- Mức độ: Dễ / TB / Khó.
+- Chủ đề: điền tên chủ đề bất kỳ.
+- Lưu file dưới dạng .docx trước khi import.`;
+    const paragraphs = body.split('\n').map(l => `<p style="margin:0">${esc(l) || '&nbsp;'}</p>`).join('');
+    const html = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Mẫu import câu hỏi</title></head><body style="font-family:'Times New Roman',serif;font-size:13pt">${paragraphs}</body></html>`;
+    const blob = new Blob(['﻿', html], {type:'application/msword'});
     const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
-    a.download='huong_dan_import_cau_hoi.txt'; a.click();
+    a.download='mau_import_cau_hoi.doc'; a.click();
+    URL.revokeObjectURL(a.href);
   };
 
   return (
