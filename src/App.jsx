@@ -210,8 +210,21 @@ const Questions = ({questions, setQuestions}) => {
     // Normalize line breaks then split into blocks at each "Câu N" marker
     const norm = text.replace(/\r\n?/g, '\n');
     const blocks = norm.split(/\n(?=\s*Câu\s*\d+\s*[\.\:\)])/i).filter(b=>b.trim());
+    // When Word lays options out in a table / 2-column grid, mammoth puts two
+    // options on one line ("A. xxx  B. yyy"). Split such a line at each inline
+    // option marker or meta marker so every option ends up on its own line.
+    const splitRe = /\s+(?=(?:[A-Da-d]\s*[\.\)]\s)|(?:Đáp\s*án(?:\s*đúng)?|ĐA|Chủ\s*đề|Mức\s*độ)\s*[:\.\-])/i;
     for(const block of blocks) {
-      const lines = block.split('\n').map(l=>l.trim()).filter(Boolean);
+      const lines = [];
+      for(const raw of block.split('\n')) {
+        const t = raw.trim();
+        if(!t) continue;
+        // Only explode lines that begin with an option marker (never the question text)
+        if(/^[A-Da-d]\s*[\.\)]/.test(t))
+          t.split(splitRe).forEach(s=>{ const x=s.trim(); if(x) lines.push(x); });
+        else
+          lines.push(t);
+      }
       if(lines.length < 2) { skipped++; continue; }
 
       const opts = [];
@@ -248,8 +261,8 @@ const Questions = ({questions, setQuestions}) => {
       }
 
       const qText = qParts.join(' ').trim();
-      // Keep a question if it has text, at least 2 options, and a valid answer index
-      if(qText && opts.length >= 2 && ansIdx >= 0 && ansIdx < opts.length)
+      // Keep a question only if it has text, EXACTLY 4 options, and a valid answer index
+      if(qText && opts.length === 4 && ansIdx >= 0 && ansIdx < 4)
         parsed.push({id:Date.now()+Math.random(), text:qText, opts, ans:ansIdx, topic, level});
       else
         skipped++;
@@ -265,9 +278,9 @@ const Questions = ({questions, setQuestions}) => {
       const result = await mammoth.extractRawText({arrayBuffer});
       const {parsed, skipped} = parseWordText(result.value);
       if(parsed.length===0){
-        setImportResult({error:'Không tìm thấy câu hỏi hợp lệ nào. Mỗi câu cần có nội dung, tối thiểu 2 đáp án (A, B, ...) và dòng "Đáp án: X". Vui lòng kiểm tra lại định dạng file.'});
+        setImportResult({error:'Không tìm thấy câu hỏi hợp lệ nào. Mỗi câu cần có nội dung, đủ 4 đáp án (A, B, C, D) và dòng "Đáp án: X". Vui lòng kiểm tra lại định dạng file.'});
       } else {
-        if(skipped>0) setImportResult({error:`Lưu ý: có ${skipped} câu bị bỏ qua do thiếu đáp án hoặc thiếu dòng "Đáp án: X".`});
+        if(skipped>0) setImportResult({error:`Lưu ý: có ${skipped} câu bị bỏ qua do không đủ 4 đáp án hoặc thiếu dòng "Đáp án: X".`});
         setPreviewList(parsed);
       }    } catch(err) {
       setImportResult({error:'Không đọc được file Word. Vui lòng dùng định dạng .docx — lỗi: ' + err.message});
