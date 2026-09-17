@@ -975,6 +975,11 @@ const EmployeesView = ({employees, setEmployees, results, exams}) => {
     closeModal();
   };
 
+  const handleDeleteAll = () => {
+    setEmployees([]);
+    closeModal();
+  };
+
  const handleImport = (e) => {
   const file = e.target.files[0];
   if(!file) return;
@@ -1178,13 +1183,36 @@ const downloadTemplate = () => {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end mb-5 gap-3">
+      {/* Modal Xóa tất cả */}
+      {modal?.mode==='deleteAll' && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle size={20} className="text-red-500"/>
+            </div>
+            <h3 className="font-bold text-slate-800 text-center mb-2">Xóa tất cả thí sinh?</h3>
+            <p className="text-sm text-slate-500 text-center mb-1">
+              Bạn có chắc muốn xóa <span className="font-bold text-red-600">{employees.length}</span> thí sinh?
+            </p>
+            <p className="text-xs text-slate-400 text-center mb-5">Hành động này KHÔNG THỂ HOÀN TÁC. Lịch sử thi sẽ vẫn được giữ lại.</p>
+            <div className="flex gap-2">
+              <button onClick={closeModal} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-600 hover:bg-slate-50">Hủy</button>
+              <button onClick={handleDeleteAll} className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700">Xóa tất cả</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5 gap-3">
         <div className="flex flex-wrap gap-2">
           <button onClick={downloadTemplate} className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50"><Download size={14}/>Tải file mẫu</button>
           <button onClick={()=>fileRef.current.click()} disabled={importing} className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-60"><Upload size={14}/>{importing?'Đang import...':'Import Excel'}</button>
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImport}/>
           <button onClick={openAdd} className="flex items-center gap-1.5 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium"><Plus size={15}/>Thêm thí sinh</button>
         </div>
+        {employees.length > 0 && (
+          <button onClick={()=>setModal({mode:'deleteAll'})} className="flex items-center gap-1.5 px-3 py-2 border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50"><Trash2 size={14}/>Xóa tất cả</button>
+        )}
       </div>
 
       {importResult && (
