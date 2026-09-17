@@ -1015,14 +1015,12 @@ const EmployeesView = ({employees, setEmployees, results, exams}) => {
         if(nameRaw.toLowerCase().includes('họ và tên') || nameRaw.toLowerCase() === 'name') { skipReasons.header++; return; }
         const dup = employees.find(e => e.name.toLowerCase() === nameRaw.toLowerCase());
         if(dup) { skipReasons.dupName++; skipped.push(`${nameRaw} (tên trùng)`); return; }
-        const dupAcc = employees.find(e => e.account === phoneRaw);
-        if(dupAcc && phoneRaw) { skipReasons.dupAcc++; skipped.push(`${nameRaw} (TK ${phoneRaw} đã tồn tại)`); return; }
         added.push({id: Date.now() + Math.random(), name: nameRaw, dept: deptRaw || 'Chưa phân công', account: phoneRaw});
       });
 
       if(added.length > 0) setEmployees(p => [...p, ...added]);
       const totalSkipped = Object.values(skipReasons).reduce((a,b) => a+b, 0);
-      const skipMsg = totalSkipped > 0 ? ` — ${skipReasons.header} header, ${skipReasons.empty} tên trống, ${skipReasons.khoi} khối, ${skipReasons.dupName} trùng tên, ${skipReasons.dupAcc} trùng TK` : '';
+      const skipMsg = totalSkipped > 0 ? ` — ${skipReasons.header} header, ${skipReasons.empty} tên trống, ${skipReasons.khoi} khối, ${skipReasons.dupName} trùng tên` : '';
       setImportResult({added: added.length, skipped: skipped.length, totalSkipped, skipMsg, review: skipped.slice(0, 10)});
       setTimeout(() => setImportResult(null), 5000);
     } catch(err) {
