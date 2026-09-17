@@ -67,7 +67,7 @@ const orderedQuestions = (qs) => [...qs].sort((a,b)=>{
 // ── SIDEBAR (desktop) + MOBILE NAV ──
 const Sidebar = ({role, active, setActive, user, onLogout, rail, setRail}) => {
   const nav = role==='admin'
-    ? [{id:'dashboard',ic:<Home size={18}/>,lb:'Tổng quan'},{id:'questions',ic:<BookOpen size={18}/>,lb:'Câu hỏi'},{id:'exams',ic:<FileText size={18}/>,lb:'Đề thi'},{id:'results',ic:<Award size={18}/>,lb:'Kết quả'},{id:'employees',ic:<Users size={18}/>,lb:'Thí sinh'}]
+    ? [{id:'dashboard',ic:<Home size={18}/>,lb:'Tổng quan'},{id:'questions',ic:<BookOpen size={18}/>,lb:'Câu hỏi'},{id:'exams',ic:<FileText size={18}/>,lb:'Đề thi'},{id:'results',ic:<Award size={18}/>,lb:'Kết quả'},{id:'employees',ic:<Users size={18}/>,lb:'Thí sinh'},{id:'accounts',ic:<ShieldCheck size={18}/>,lb:'Tài khoản'}]
     : [{id:'home',ic:<Home size={18}/>,lb:'Trang chủ'},{id:'results',ic:<Award size={18}/>,lb:'Kết quả'}];
   return (
     <>
@@ -918,7 +918,7 @@ const EmployeesView = ({employees, setEmployees, results, exams}) => {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [modal, setModal] = useState(null); // null | {mode:'add'} | {mode:'edit', emp} | {mode:'delete', emp}
-  const [form, setForm] = useState({name:'', dept:''});
+  const [form, setForm] = useState({name:'', dept:'', account:''});
   const [customDept, setCustomDept] = useState('');
   const [formErr, setFormErr] = useState('');
   const fileRef = useRef();
@@ -935,13 +935,13 @@ const EmployeesView = ({employees, setEmployees, results, exams}) => {
     setRenamingDept(null);
   };
 
-  const openAdd = () => { 
-    setForm({name:'', dept: depts.length > 0 ? depts[0] : '__custom__'}); 
-    setCustomDept(''); 
-    setFormErr(''); 
-    setModal({mode:'add'}); 
+  const openAdd = () => {
+    setForm({name:'', dept: depts.length > 0 ? depts[0] : '__custom__', account:''});
+    setCustomDept('');
+    setFormErr('');
+    setModal({mode:'add'});
   };
-  const openEdit = (emp) => { setForm({name:emp.name, dept:emp.dept}); setCustomDept(''); setFormErr(''); setModal({mode:'edit', emp}); };
+  const openEdit = (emp) => { setForm({name:emp.name, dept:emp.dept, account:emp.account||''}); setCustomDept(''); setFormErr(''); setModal({mode:'edit', emp, password:'1'}); };
   const openDelete = (emp) => setModal({mode:'delete', emp});
   const closeModal = () => { setModal(null); setFormErr(''); };
 
@@ -950,16 +950,22 @@ const EmployeesView = ({employees, setEmployees, results, exams}) => {
   const handleSave = () => {
     const name = form.name.trim();
     const dept = form.dept === '__custom__' ? customDept.trim() : form.dept;
+    const account = form.account.trim();
     if(!name) return setFormErr('Vui lòng nhập họ và tên');
     if(!dept) return setFormErr('Vui lòng chọn hoặc nhập đơn vị');
+    if(!account) return setFormErr('Vui lòng nhập tài khoản');
     if(modal.mode==='add') {
       const dup = employees.find(e=>e.name.toLowerCase()===name.toLowerCase());
       if(dup) return setFormErr('Thí sinh này đã tồn tại trong hệ thống');
-      setEmployees(p=>[...p, {id:Date.now(), name, dept}]);
+      const dupAcc = employees.find(e=>e.account===account);
+      if(dupAcc) return setFormErr('Tài khoản này đã được sử dụng');
+      setEmployees(p=>[...p, {id:Date.now(), name, dept, account}]);
     } else {
       const dup = employees.find(e=>e.name.toLowerCase()===name.toLowerCase() && e.id!==modal.emp.id);
       if(dup) return setFormErr('Tên này đã được dùng cho thí sinh khác');
-      setEmployees(p=>p.map(e=>e.id===modal.emp.id?{...e,name,dept}:e));
+      const dupAcc = employees.find(e=>e.account===account && e.id!==modal.emp.id);
+      if(dupAcc) return setFormErr('Tài khoản này đã được sử dụng');
+      setEmployees(p=>p.map(e=>e.id===modal.emp.id?{...e,name,dept,account}:e));
     }
     closeModal();
   };
@@ -982,30 +988,38 @@ const EmployeesView = ({employees, setEmployees, results, exams}) => {
       const added = [];
       const skipped = [];
 
-      // Tìm index cột Họ và tên, Đơn vị
-      let colName = -1, colDept = -1;
+      // Tìm index cột Họ và tên, Đơn vị, Số điện thoại
+      let colName = -1, colDept = -1, colPhone = -1;
       for(let i = 0; i < Math.min(5, rows.length); i++) {
         const row = rows[i].map(c => String(c).trim().toLowerCase());
         const ni = row.findIndex(c => c.includes('họ') || c.includes('tên') || c === 'name');
         const di = row.findIndex(c => c.includes('đơn vị') || c.includes('phòng') || c.includes('dept') || c.includes('khoa'));
-        if(ni !== -1) { colName = ni; colDept = di !== -1 ? di : ni+1; break; }
+        const pi = row.findIndex(c => c.includes('điện thoại') || c.includes('phone') || c.includes('tài khoản') || c.includes('số'));
+        if(ni !== -1) { colName = ni; colDept = di !== -1 ? di : ni+1; colPhone = pi !== -1 ? pi : ni+2; break; }
       }
-      if(colName === -1) { colName = 1; colDept = 2; }
+      if(colName === -1) { colName = 1; colDept = 2; colPhone = 0; }
+
+      const skipReasons = {empty: 0, header: 0, khoi: 0, dupName: 0, dupAcc: 0};
 
       rows.forEach(row => {
         const nameRaw = String(row[colName]||'').trim();
         const deptRaw = String(colDept >= 0 ? (row[colDept]||'') : '').trim();
-        if(!nameRaw) return;
-        if(nameRaw.toUpperCase().includes('KHỐI')) return;
-        if(nameRaw.toLowerCase().includes('họ và tên') || nameRaw.toLowerCase() === 'name') return;
+        const phoneRaw = String(colPhone >= 0 ? (row[colPhone]||'') : '').trim();
+        if(!nameRaw) { skipReasons.empty++; return; }
+        if(nameRaw.toUpperCase().includes('KHỐI')) { skipReasons.khoi++; return; }
+        if(nameRaw.toLowerCase().includes('họ và tên') || nameRaw.toLowerCase() === 'name') { skipReasons.header++; return; }
         const dup = employees.find(e => e.name.toLowerCase() === nameRaw.toLowerCase());
-        if(dup) { skipped.push(`${nameRaw} (trùng)`); return; }
-        added.push({id: Date.now() + Math.random(), name: nameRaw, dept: deptRaw || 'Chưa phân công'});
+        if(dup) { skipReasons.dupName++; skipped.push(`${nameRaw} (tên trùng)`); return; }
+        const dupAcc = employees.find(e => e.account === phoneRaw);
+        if(dupAcc && phoneRaw) { skipReasons.dupAcc++; skipped.push(`${nameRaw} (TK ${phoneRaw} đã tồn tại)`); return; }
+        added.push({id: Date.now() + Math.random(), name: nameRaw, dept: deptRaw || 'Chưa phân công', account: phoneRaw});
       });
 
       if(added.length > 0) setEmployees(p => [...p, ...added]);
-      setImportResult({added: added.length, skipped: skipped.length, names: added.map(e=>e.name)});
-      setTimeout(() => setImportResult(null), 3000);
+      const totalSkipped = Object.values(skipReasons).reduce((a,b) => a+b, 0);
+      const skipMsg = totalSkipped > 0 ? ` — ${skipReasons.header} header, ${skipReasons.empty} tên trống, ${skipReasons.khoi} khối, ${skipReasons.dupName} trùng tên, ${skipReasons.dupAcc} trùng TK` : '';
+      setImportResult({added: added.length, skipped: skipped.length, totalSkipped, skipMsg, review: skipped.slice(0, 10)});
+      setTimeout(() => setImportResult(null), 5000);
     } catch(err) {
       setImportResult({error: 'Không đọc được file. Vui lòng kiểm tra định dạng.'});
     }
@@ -1017,8 +1031,8 @@ const EmployeesView = ({employees, setEmployees, results, exams}) => {
 
 const downloadTemplate = () => {
   const ws = XLSX.utils.aoa_to_sheet([
-    ['TT', 'Họ và tên', 'Đơn vị'],
-    ['KHỐI CƠ QUAN', '', ''],
+    ['TT', 'Họ và tên', 'Số điện thoại', 'Đơn vị'],
+    ['KHỐI CƠ QUAN', '', '', ''],
     [1, 'Nguyễn Thị A', 'Phòng KHTH'],
     [2, 'Trần Văn B', 'Ban ĐD'],
     ['KHỐI NỘI', '', ''],
@@ -1034,6 +1048,20 @@ const downloadTemplate = () => {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
+
+  const naturalSort = (a, b) => {
+    const regex = /(\d+)/g;
+    const aParts = a.split(regex);
+    const bParts = b.split(regex);
+    for(let i=0; i<Math.min(aParts.length, bParts.length); i++){
+      const aNum = /^\d+$/.test(aParts[i]);
+      const bNum = /^\d+$/.test(bParts[i]);
+      if(aNum && bNum) { const cmp = +aParts[i] - +bParts[i]; if(cmp!==0) return cmp; }
+      else if(aNum || bNum) return aNum ? 1 : -1;
+      else { const cmp = aParts[i].localeCompare(bParts[i]); if(cmp!==0) return cmp; }
+    }
+    return aParts.length - bParts.length;
+  };
 
   const deptCounts = depts.map(d=>({dept:d, count:employees.filter(e=>e.dept===d).length}));
   const filtered = employees.filter(e=>{
@@ -1094,6 +1122,25 @@ const downloadTemplate = () => {
                   />
                 )}
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-600 mb-1.5 block">Tài khoản <span className="text-red-400">*</span></label>
+                  <input
+                    className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500"
+                    placeholder="VD: nguyenvanA"
+                    value={form.account}
+                    onChange={e=>{ setForm(f=>({...f,account:e.target.value})); setFormErr(''); }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-600 mb-1.5 block">Mật khẩu</label>
+                  <input
+                    className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-slate-50"
+                    value="1"
+                    disabled
+                  />
+                </div>
+              </div>
               {formErr && (
                 <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
                   <AlertCircle size={14} className="text-red-500 flex-shrink-0"/>
@@ -1141,12 +1188,26 @@ const downloadTemplate = () => {
       </div>
 
       {importResult && (
-        <div className={`mb-4 rounded-xl p-3 flex items-center gap-3 ${importResult.error?'bg-red-50 border border-red-200':'bg-emerald-50 border border-emerald-200'}`}>
-          {importResult.error ? <AlertCircle size={15} className="text-red-500"/> : <CheckCircle size={15} className="text-emerald-600"/>}
-          <p className={`text-sm flex-1 ${importResult.error?'text-red-700':'text-emerald-800 font-medium'}`}>
-            {importResult.error || `Thêm ${importResult.added} thí sinh thành công!`}
-          </p>
-          <button onClick={()=>setImportResult(null)} className="text-slate-400 hover:text-slate-600"><X size={14}/></button>
+        <div className={`mb-4 rounded-xl p-4 flex flex-col gap-2 ${importResult.error?'bg-red-50 border border-red-200':'bg-emerald-50 border border-emerald-200'}`}>
+          <div className="flex items-start gap-3">
+            {importResult.error ? <AlertCircle size={15} className="text-red-500 flex-shrink-0 mt-0.5"/> : <CheckCircle size={15} className="text-emerald-600 flex-shrink-0 mt-0.5"/>}
+            <div className="flex-1">
+              <p className={`text-sm font-medium ${importResult.error?'text-red-700':'text-emerald-800'}`}>
+                {importResult.error || `✓ Thêm ${importResult.added} thí sinh thành công!`}
+              </p>
+              {importResult.totalSkipped > 0 && !importResult.error && (
+                <p className="text-xs text-emerald-700 mt-1">
+                  Bỏ qua {importResult.totalSkipped} dòng{importResult.skipMsg}
+                </p>
+              )}
+              {importResult.review?.length > 0 && (
+                <div className="text-xs text-emerald-700 mt-2 space-y-1">
+                  {importResult.review.map((r,i) => <div key={i} className="line-clamp-1">• {r}</div>)}
+                </div>
+              )}
+            </div>
+            <button onClick={()=>setImportResult(null)} className="text-slate-400 hover:text-slate-600 flex-shrink-0"><X size={14}/></button>
+          </div>
         </div>
       )}
 
@@ -1165,16 +1226,14 @@ const downloadTemplate = () => {
         ))}
       </div>
 
-      {/* Dept filter tabs + search */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3 flex-wrap gap-2">
-        <div className="flex gap-2 flex-wrap">
-          {deptCounts.map(({dept,count})=>(
-            <button key={dept} onClick={()=>{setActiveDept(dept);setPage(1);}}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${activeDept===dept?'bg-emerald-600 text-white border-emerald-600':'bg-white text-slate-600 border-slate-200 hover:border-emerald-300'}`}>
-              {dept}<span className={`text-xs px-1.5 py-0.5 rounded-full ml-0.5 ${activeDept===dept?'bg-white/25 text-white':'bg-slate-100 text-slate-500'}`}>{count}</span>
-            </button>
+      {/* Dept filter dropdown + search */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
+        <select value={activeDept} onChange={e=>{setActiveDept(e.target.value);setPage(1);}} className="px-4 py-2 border border-slate-200 rounded-lg bg-white text-sm font-medium text-slate-700 hover:border-emerald-300 focus:outline-none focus:border-emerald-500">
+          <option value="all">Tất cả phòng/khoa ({deptCounts.reduce((a,d)=>a+d.count,0)})</option>
+          {[...deptCounts].sort((a,b)=>naturalSort(a.dept, b.dept)).map(({dept,count})=>(
+            <option key={dept} value={dept}>{dept} ({count})</option>
           ))}
-        </div>
+        </select>
         <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-1.5 bg-white">
           <FileText size={13} className="text-slate-400"/>
           <input className="text-sm outline-none w-44 text-slate-700 placeholder-slate-400" placeholder="Tìm kiếm thí sinh..." value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
@@ -1186,7 +1245,7 @@ const downloadTemplate = () => {
         <table className="w-full min-w-[640px]">
           <thead>
             <tr className="border-b border-slate-100">
-              {['Thí sinh','Lượt thi','Đạt','Điểm TB','Kết quả gần nhất','Thao tác'].map(h=>(
+              {['Thí sinh','Tài khoản','Mật khẩu','Lượt thi','Đạt','Điểm TB','Kết quả gần nhất','Thao tác'].map(h=>(
                 <th key={h} className={`px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide ${h==='Kết quả gần nhất'||h==='Thao tác'?'text-center':'text-left'}`}>{h}</th>
               ))}
             </tr>
@@ -1197,7 +1256,7 @@ const downloadTemplate = () => {
               if(!deptEmps.length) return null;
               return [
                 <tr key={`hd-${dept}`} className="bg-slate-50/80 border-t border-slate-100">
-                  <td colSpan={6} className="px-5 py-2">
+                  <td colSpan={8} className="px-5 py-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 bg-emerald-100 rounded-lg flex items-center justify-center"><Users size={11} className="text-emerald-500"/></div>
@@ -1228,6 +1287,8 @@ const downloadTemplate = () => {
                   return (
                     <tr key={emp.id} className="border-t border-slate-50 hover:bg-slate-50/50 transition-colors">
                       <td className="px-5 py-3 text-sm font-medium text-slate-800">{emp.name}</td>
+                      <td className="px-5 py-3 text-sm text-slate-600 font-mono text-slate-500">{emp.account||'--'}</td>
+                      <td className="px-5 py-3 text-sm font-mono text-slate-600">1</td>
                       <td className="px-5 py-3 text-sm text-slate-600">{rs.length}</td>
                       <td className="px-5 py-3 text-sm font-semibold text-emerald-600">{passed}</td>
                       <td className="px-5 py-3">
@@ -1720,7 +1781,7 @@ const ExamScreen = ({user, exam, questions, onFinish}) => {
           <span className="text-slate-400 text-xs">{cur+1}/{qs.length}</span>
         </div>
       </div>
-      <div className="flex flex-1 gap-4 p-3 md:p-6">
+      <div className="flex flex-col md:flex-row flex-1 gap-4 p-3 md:p-6">
         <div className="flex-1">
           <div className="bg-white rounded-2xl p-4 md:p-6 mb-4">
             <div className="flex items-center gap-2 mb-4">
@@ -1744,7 +1805,7 @@ const ExamScreen = ({user, exam, questions, onFinish}) => {
             }
           </div>
         </div>
-        <div className="w-48 flex-shrink-0">
+        <div className="w-full md:w-48 md:flex-shrink-0">
           <div className="bg-white rounded-2xl p-4">
             <div className="text-sm font-semibold text-slate-700 mb-3">Bảng câu hỏi</div>
             <div className="grid grid-cols-5 sm:grid-cols-4 gap-1.5 mb-4">
@@ -1783,14 +1844,33 @@ const ExamScreen = ({user, exam, questions, onFinish}) => {
 // để tránh lộ nội dung ngân hàng câu hỏi cho các lượt thi sau.
 const ResultScreen = ({result, exam, questions, onBack}) => {
   const total = exam.qIds.filter(id => questions.some(q => q.id === id)).length;
+  const unanswered = result.answers.filter(x => x === -1).length;
+  const wrong = total - result.correct - unanswered;
   const ok = result.score>=exam.pass;
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className={`rounded-2xl px-6 py-5 text-center text-white font-medium ${ok?'bg-emerald-500':'bg-red-500'}`}>
-          {result.correct}/{total} câu đúng • Cần đạt {exam.pass}%
+        <div className={`rounded-2xl px-6 py-8 text-center text-white font-medium mb-4 ${ok?'bg-emerald-500':'bg-red-500'}`}>
+          <div className="text-3xl font-bold mb-2">{result.score}%</div>
+          <div className="text-sm font-normal">Cần đạt {exam.pass}%</div>
         </div>
-        <button onClick={onBack} className="mt-4 w-full py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700">← Quay lại trang chủ</button>
+        <div className="bg-white rounded-2xl p-6 mb-4 shadow-sm border border-slate-100">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-emerald-600">{result.correct}</div>
+              <div className="text-xs text-slate-500 mt-1">Câu đúng</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-500">{wrong}</div>
+              <div className="text-xs text-slate-500 mt-1">Câu sai</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-amber-500">{unanswered}</div>
+              <div className="text-xs text-slate-500 mt-1">Chưa làm</div>
+            </div>
+          </div>
+        </div>
+        <button onClick={onBack} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700">← Quay lại trang chủ</button>
       </div>
     </div>
   );
@@ -1911,7 +1991,7 @@ const BackBtn = ({onClick}) => (
 
 const Login = ({onLogin, employees}) => {
   const [step, setStep] = useState('role'); // 'role' | 'admin' | 'candidatePassword' | 'dept' | 'employee'
-  const [candidateForm, setCandidateForm] = useState({pass:'', err:''});
+  const [candidateForm, setCandidateForm] = useState({account:'', pass:'', err:''});
   const [adminForm, setAdminForm] = useState({user:'', pass:'', err:''});
   const [selectedDept, setSelectedDept] = useState('');
 
@@ -1928,19 +2008,30 @@ const Login = ({onLogin, employees}) => {
 
   const handleCandidateLogin = (event) => {
     event.preventDefault();
-    if (!/^[0-9]{4}$/.test(candidateForm.pass)) {
-      setCandidateForm(f=>({...f, err:'Vui lòng nhập mật khẩu gồm đúng 4 chữ số.'}));
+    const account = candidateForm.account.trim();
+    if (!account) {
+      setCandidateForm(f=>({...f, err:'Vui lòng nhập tài khoản.'}));
       return;
     }
-    if (candidateForm.pass !== '2026') {
+    const emp = employees.find(e => e.account === account);
+    if (!emp) {
+      setCandidateForm(f=>({...f, err:'Tài khoản không tồn tại.'}));
+      return;
+    }
+    if (!candidateForm.pass) {
+      setCandidateForm(f=>({...f, err:'Vui lòng nhập mật khẩu.'}));
+      return;
+    }
+    if (candidateForm.pass !== '1') {
       setCandidateForm(f=>({...f, err:'Mật khẩu không đúng. Vui lòng thử lại.'}));
       return;
     }
-    setCandidateForm({pass:'', err:''});
-    setStep('dept');
+    // Tự động login với employee tìm được
+    setCandidateForm({account:'', pass:'', err:''});
+    onLogin({role:'employee', ...emp});
   };
 
-  const back = (to) => { setStep(to); setAdminForm({user:'',pass:'',err:''}); setCandidateForm({pass:'',err:''}); setSelectedDept(''); };
+  const back = (to) => { setStep(to); setAdminForm({user:'',pass:'',err:''}); setCandidateForm({account:'',pass:'',err:''}); setSelectedDept(''); };
 
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4 sm:p-8">
@@ -1951,7 +2042,7 @@ const Login = ({onLogin, employees}) => {
         <div className="text-center">
           <div className="flex justify-center"><Emblem size={128}/></div>
           <h1 className="mt-3 text-xl sm:text-1xl font-bold text-[#0B4F32] tracking-tight">CỤC HẬU CẦN KỸ THUẬT QUÂN KHU 4</h1>
-          <p className="mt-1.5 text-slate-600 text-sm">BAN TỔ CHỨC HỘI THI BÍ THƯ CHI BỘ NĂM 2026</p>
+          <p className="mt-1.5 text-slate-600 text-sm">BỆNH VIỆN QUÂN Y 4</p>
           <StarDivider/>
         </div>
 
@@ -1990,26 +2081,38 @@ const Login = ({onLogin, employees}) => {
               <form onSubmit={handleCandidateLogin} noValidate className="bg-white border border-slate-200/80 shadow-sm rounded-2xl p-5 sm:p-6 space-y-4">
                 <div>
                   <h2 className="text-[#0B4F32] font-bold">Thí sinh</h2>
-                  <p className="text-slate-500 text-sm mt-1">Vui lòng nhập mật khẩu 4 số để vào trang thi.</p>
+                  <p className="text-slate-500 text-sm mt-1">Vui lòng nhập tài khoản và mật khẩu để vào trang thi.</p>
+                </div>
+                <div>
+                  <label htmlFor="candidate-account" className="text-slate-600 text-xs mb-1.5 block font-medium">Tài khoản</label>
+                  <input
+                    id="candidate-account"
+                    type="text"
+                    autoComplete="off"
+                    autoFocus
+                    aria-invalid={Boolean(candidateForm.err)}
+                    aria-describedby={candidateForm.err ? 'candidate-error' : undefined}
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition"
+                    placeholder="VD: nguyenvanA"
+                    value={candidateForm.account}
+                    onChange={e=>setCandidateForm(f=>({...f, account:e.target.value, err:''}))}
+                  />
                 </div>
                 <div>
                   <label htmlFor="candidate-password" className="text-slate-600 text-xs mb-1.5 block font-medium">Mật khẩu</label>
                   <input
                     id="candidate-password"
                     type="password"
-                    inputMode="numeric"
                     autoComplete="off"
-                    maxLength={4}
-                    autoFocus
                     aria-invalid={Boolean(candidateForm.err)}
-                    aria-describedby={candidateForm.err ? 'candidate-password-error' : undefined}
+                    aria-describedby={candidateForm.err ? 'candidate-error' : undefined}
                     className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition"
-                    placeholder="Nhập mật khẩu 4 số"
+                    placeholder="Nhập mật khẩu"
                     value={candidateForm.pass}
-                    onChange={e=>setCandidateForm({pass:e.target.value.replace(/[^0-9]/g, '').slice(0,4), err:''})}
+                    onChange={e=>setCandidateForm(f=>({...f, pass:e.target.value, err:''}))}
                   />
                 </div>
-                {candidateForm.err && <p id="candidate-password-error" role="alert" className="text-red-600 text-sm">{candidateForm.err}</p>}
+                {candidateForm.err && <p id="candidate-error" role="alert" className="text-red-600 text-sm">{candidateForm.err}</p>}
                 <button type="submit" className="w-full bg-gradient-to-r from-[#0B4F32] to-emerald-600 hover:from-[#0a4429] hover:to-emerald-700 text-white py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-emerald-900/15 transition-all">Vào trang thi</button>
               </form>
             </div>
@@ -2286,6 +2389,106 @@ const ExamResults = ({results, exams, employees, questions, onClearAll}) => {
   );
 };
 
+// ── ACCOUNTS (Quản lý tài khoản) ──
+const Accounts = ({employees, setEmployees}) => {
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({name:'', oldAccount:'', newAccount:''});
+  const [formErr, setFormErr] = useState('');
+
+  const openEdit = (emp) => {
+    setForm({name:emp.name, oldAccount:emp.account||'', newAccount:emp.account||''});
+    setFormErr('');
+    setModal({mode:'edit', emp});
+  };
+
+  const handleSave = () => {
+    const newAccount = form.newAccount.trim();
+    if(!newAccount) return setFormErr('Tài khoản không được để trống');
+    const dup = employees.find(e=>e.account===newAccount && e.id!==modal.emp.id);
+    if(dup) return setFormErr('Tài khoản này đã được sử dụng');
+    setEmployees(p=>p.map(e=>e.id===modal.emp.id?{...e,account:newAccount}:e));
+    setModal(null);
+  };
+
+  return (
+    <div>
+      {modal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="font-bold text-slate-800">Đổi tài khoản</h2>
+              <button onClick={()=>setModal(null)} className="text-slate-400 hover:text-slate-600"><X size={18}/></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Thí sinh</label>
+                <input className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-slate-50" value={form.name} disabled/>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Tài khoản cũ</label>
+                <input className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-slate-50" value={form.oldAccount} disabled/>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Tài khoản mới <span className="text-red-400">*</span></label>
+                <input
+                  className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500"
+                  placeholder="Nhập tài khoản mới"
+                  value={form.newAccount}
+                  onChange={e=>{ setForm(f=>({...f,newAccount:e.target.value})); setFormErr(''); }}
+                />
+              </div>
+              {formErr && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                  <AlertCircle size={14} className="text-red-500 flex-shrink-0"/>
+                  <span className="text-red-600 text-xs">{formErr}</span>
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button onClick={()=>setModal(null)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-600 hover:bg-slate-50">Hủy</button>
+                <button onClick={handleSave} className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700">Cập nhật</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-5">
+        <h1 className="text-lg md:text-xl font-bold text-slate-800">Quản lý tài khoản</h1>
+        <p className="text-slate-500 text-xs md:text-sm mt-0.5">{employees.length} tài khoản</p>
+      </div>
+
+      {employees.length === 0 ? (
+        <div className="bg-white rounded-xl p-8 text-center text-slate-400 border border-slate-100">Chưa có thí sinh nào</div>
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
+          <table className="w-full min-w-[640px]">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50/50">
+                {['Thí sinh','Đơn vị','Tài khoản','Mật khẩu','Thao tác'].map(h=>(
+                  <th key={h} className="px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide text-left">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {employees.map(emp=>(
+                <tr key={emp.id} className="border-t border-slate-50 hover:bg-slate-50/50 transition-colors">
+                  <td className="px-5 py-3 text-sm font-medium text-slate-800">{emp.name}</td>
+                  <td className="px-5 py-3 text-xs text-slate-500">{emp.dept}</td>
+                  <td className="px-5 py-3 text-sm font-mono text-slate-600">{emp.account||'--'}</td>
+                  <td className="px-5 py-3 text-sm font-mono text-slate-600">1</td>
+                  <td className="px-5 py-3">
+                    <button onClick={()=>openEdit(emp)} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-medium hover:bg-emerald-100">Đổi tài khoản</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState('dashboard');
@@ -2429,6 +2632,7 @@ export default function App() {
     exams:     <Exams exams={exams} setExams={setExamsSync} questions={questions}/>,
     results:   <ExamResults results={results} exams={exams} employees={employees} questions={questions} onClearAll={()=>setResultsSync([])}/>,
     employees: <EmployeesView employees={employees} setEmployees={setEmployeesSync} results={results} exams={exams}/>,
+    accounts:  <Accounts employees={employees} setEmployees={setEmployeesSync}/>,
   };
   const empViews = {
     home:    <EmpHome user={user} exams={exams} results={results} onStart={startExam}/>,
