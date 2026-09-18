@@ -394,6 +394,78 @@ const Questions = ({questions, setQuestions}) => {
     .replace(/&quot;/gi, '"').replace(/&#39;/gi, "'")
     .replace(/&amp;/gi, '&');
 
+  // Parser cho format a) b) c) d) với X mark (định dạng mới)
+  const parseWordTextNewFormat = (text) => {
+    const norm = text
+      .replace(/\r\n?/g, '\n')
+      .replace(/ /g, ' ');
+
+    const lines = norm.split('\n').map(l => l.trim()).filter(l => l);
+    const parsed = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+      // Tìm dấu hiệu câu hỏi: "01", "02", "03"... hoặc "1.", "2."
+      const qMatch = line.match(/^(\d{1,2})\s*[\.\)]?\s*(.*)/);
+      if (!qMatch) { i++; continue; }
+
+      const qNum = qMatch[1];
+      const firstLineText = qMatch[2];
+      const qText = (firstLineText || lines[i + 1] || '').trim();
+
+      if (!qText) { i++; continue; }
+
+      const opts = [];
+      let ansIdx = -1;
+      const optMarks = {};
+      i++;
+
+      // Thu thập các dòng tiếp theo đến khi gặp câu hỏi mới hoặc end
+      while (i < lines.length) {
+        const currLine = lines[i];
+        if (/^\d{1,2}\s*[\.\)]?\s+/.test(currLine) && /^[a-d]\)/.test(lines[i - 1] || '')) break;
+
+        const optMatch = currLine.match(/^([a-d])\)\s*(.*)/);
+        if (optMatch) {
+          const optIdx = optMatch[1].charCodeAt(0) - 97; // a=0, b=1, c=2, d=3
+          optMarks[optIdx] = optMatch[2].trim();
+          opts[optIdx] = optMatch[2].trim();
+          i++;
+
+          // Kiểm tra dòng tiếp theo xem có X mark không
+          if (i < lines.length && lines[i].trim() === 'X') {
+            ansIdx = optIdx;
+            i++;
+          }
+        } else if (/^X$|^x$/.test(currLine)) {
+          // X ở dòng riêng → đáp án cho option trước đó
+          if (opts.length > 0) {
+            ansIdx = opts.length - 1;
+          }
+          i++;
+        } else {
+          i++;
+        }
+      }
+
+      const opts_clean = opts.filter(o => o).slice(0, 4);
+      if (opts_clean.length >= 2) {
+        parsed.push({
+          id: Date.now() + Math.random(),
+          text: qText,
+          opts: opts_clean,
+          ans: ansIdx >= 0 && ansIdx < opts_clean.length ? ansIdx : 0,
+          topic: 'Nội quy',
+          level: 'Dễ',
+          ...(ansIdx < 0 ? { needsReview: true, _issues: ['chưa rõ đáp án đúng'] } : {})
+        });
+      }
+    }
+
+    return { parsed, found: parsed.length };
+  };
+
   const parseWordText = (text) => {
     const norm = text
       .replace(/\r\n?/g, '\n')
@@ -524,8 +596,12 @@ const Questions = ({questions, setQuestions}) => {
           const text = await fn();
           if (!text || !text.trim()) return;
           gotText = true;
-          const res = parseWordText(text);
-          if (res.found > best.found) best = res;
+          // Thử parser format cũ (Câu 1, A. B. C. D.)
+          const res1 = parseWordText(text);
+          if (res1.found > best.found) best = res1;
+          // Thử parser format mới (01, a) b) c) d) với X mark)
+          const res2 = parseWordTextNewFormat(text);
+          if (res2.found > best.found) best = res2;
         } catch (err) { details.push(err.message); }
       };
 
@@ -1138,10 +1214,11 @@ const downloadTemplate = () => {
                 <div>
                   <label className="text-xs font-medium text-slate-600 mb-1.5 block">Mật khẩu</label>
                   <input
-                    className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-slate-50"
-                    value="1"
+                    className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-slate-50 text-slate-600"
+                    value={form.account || '(chưa có tài khoản)'}
                     disabled
                   />
+                  <p className="text-xs text-slate-400 mt-1">Tự động = tài khoản</p>
                 </div>
               </div>
               {formErr && (
@@ -2048,7 +2125,7 @@ const Login = ({onLogin, employees}) => {
       setCandidateForm(f=>({...f, err:'Vui lòng nhập mật khẩu.'}));
       return;
     }
-    if (candidateForm.pass !== '1') {
+    if (candidateForm.pass !== emp.account) {
       setCandidateForm(f=>({...f, err:'Mật khẩu không đúng. Vui lòng thử lại.'}));
       return;
     }
