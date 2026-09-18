@@ -4,7 +4,7 @@ import mammoth from "mammoth";
 import legacyDocToText from "legacy-doc-reader";
 import JSZip from "jszip";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { BookOpen, Users, FileText, BarChart2, LogOut, Plus, Trash2, Clock, CheckCircle, Award, Home, Play, TrendingUp, TrendingDown, X, ChevronRight, Shield, ShieldCheck, Star, ArrowRight, ArrowLeft, Upload, Download, AlertCircle, Info, FileSearch, PieChart as PieChartIcon } from "lucide-react";
+import { BookOpen, Users, FileText, BarChart2, LogOut, Plus, Trash2, Clock, CheckCircle, Award, Home, Play, TrendingUp, TrendingDown, X, ChevronRight, Shield, ShieldCheck, Star, ArrowRight, ArrowLeft, Upload, Download, AlertCircle, Info, FileSearch, PieChart as PieChartIcon, Lock, LockOpen } from "lucide-react";
 import { db, missingConfig, projectId } from "./firebase";
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from "firebase/firestore";
 
@@ -75,7 +75,7 @@ const Sidebar = ({role, active, setActive, user, onLogout, rail, setRail}) => {
       <div className={`hidden md:flex ${rail?'w-[78px]':'w-[168px]'} bg-white h-screen flex-col fixed left-0 top-0 z-10 border-r border-slate-200/80 transition-[width] duration-200`}>
         <div className="py-5 flex flex-col items-center gap-1.5 flex-shrink-0">
           <Emblem size={rail?52:76}/>
-          {!rail && <div className="text-[10px] font-bold text-[#0B4F32] text-center leading-tight px-2">CỤC HẬU CẦN KỸ THUẬT QUÂN KHU 4</div>}
+          {!rail && <div className="text-[10px] font-bold text-[#0B4F32] text-center leading-tight px-2">BỆNH VIỆN QUÂN Y 4</div>}
         </div>
 
         <nav className="flex-1 px-2.5 space-y-1.5 relative">
@@ -111,7 +111,7 @@ const Sidebar = ({role, active, setActive, user, onLogout, rail, setRail}) => {
         <div className="flex items-center gap-2 flex-shrink-0">
           <Emblem size={34}/>
           <div>
-            <div className="text-[#0B4F32] font-bold text-[10px] leading-tight whitespace-nowrap">CỤC HẬU CẦN KỸ THUẬT QUÂN KHU 4</div>
+            <div className="text-[#0B4F32] font-bold text-[10px] leading-tight whitespace-nowrap">BỆNH VIỆN QUÂN Y 4</div>
             <div className="text-slate-400 text-[9px] whitespace-nowrap">Hệ thống thi trắc nghiệm</div>
           </div>
         </div>
@@ -938,6 +938,11 @@ const Exams = ({exams, setExams, questions}) => {
     setEditingExamId(exam.id);
     setModal(true);
   };
+
+  const toggleLock = (examId) => {
+    setExams(p=>p.map(e=>e.id===examId?{...e,locked:!e.locked}:e));
+  };
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-3">
@@ -1017,10 +1022,17 @@ const Exams = ({exams, setExams, questions}) => {
       )}
       <div className="space-y-3">
         {exams.map(exam=>(
-          <div key={exam.id} className="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
+          <div key={exam.id} className={`rounded-xl p-5 shadow-sm border ${exam.locked?'bg-slate-50 border-slate-200':'bg-white border-slate-100'}`}>
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
-                <h3 className="font-semibold text-slate-800 mb-1">{exam.title}</h3>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="font-semibold text-slate-800">{exam.title}</h3>
+                  {exam.locked && (
+                    <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 rounded-full text-xs font-medium text-amber-700">
+                      <Lock size={11}/>Đã khoá
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-slate-500 mb-3">{exam.desc}</p>
                 <div className="flex gap-4 text-xs text-slate-500 flex-wrap">
                   <span className="flex items-center gap-1"><FileText size={12}/>{exam.qIds.length} câu hỏi</span>
@@ -1032,8 +1044,9 @@ const Exams = ({exams, setExams, questions}) => {
                 </div>
               </div>
               <div className="flex gap-2 flex-shrink-0">
-                <button onClick={()=>openEdit(exam)} className="text-slate-400 hover:text-blue-600" title="Chỉnh sửa"><FileText size={16}/></button>
-                <button onClick={()=>setExams(p=>p.filter(e=>e.id!==exam.id))} className="text-slate-300 hover:text-red-400" title="Xóa"><Trash2 size={16}/></button>
+                <button onClick={()=>toggleLock(exam.id)} className={`${exam.locked?'text-amber-600 hover:text-amber-700':'text-slate-400 hover:text-amber-600'}`} title={exam.locked?'Mở khoá':'Khoá đề thi'}>{exam.locked?<Lock size={16}/>:<LockOpen size={16}/>}</button>
+                <button onClick={()=>openEdit(exam)} disabled={exam.locked} className={`${exam.locked?'text-slate-300 cursor-not-allowed':'text-slate-400 hover:text-blue-600'}`} title={exam.locked?'Không thể sửa đề đã khoá':'Chỉnh sửa'}><FileText size={16}/></button>
+                <button onClick={()=>setExams(p=>p.filter(e=>e.id!==exam.id))} disabled={exam.locked} className={`${exam.locked?'text-slate-300 cursor-not-allowed':'text-slate-300 hover:text-red-400'}`} title={exam.locked?'Không thể xóa đề đã khoá':'Xóa'}><Trash2 size={16}/></button>
               </div>
             </div>
           </div>
@@ -1829,24 +1842,29 @@ const EmpHome = ({user, exams, results, onStart}) => {
           const last = my.filter(r=>r.examId===exam.id).slice(-1)[0];
           const ok = last&&last.score>=exam.pass;
           return (
-            <div key={exam.id} className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+            <div key={exam.id} className={`rounded-xl p-4 shadow-sm border ${exam.locked?'bg-slate-50 border-slate-200':'bg-white border-slate-100'}`}>
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center flex-shrink-0"><FileText size={18} className="text-emerald-700"/></div>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${exam.locked?'bg-slate-100 text-slate-400':'bg-emerald-50 text-emerald-700'}`}><FileText size={18}/></div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <h3 className="font-semibold text-slate-800 text-sm">{exam.title}</h3>
-                    {ok&&<span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs">✓ Đạt</span>}
-                    {last&&!ok&&<span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">✗ Chưa đạt</span>}
+                    <h3 className={`font-semibold text-sm ${exam.locked?'text-slate-500':'text-slate-800'}`}>{exam.title}</h3>
+                    {exam.locked && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 rounded-full text-xs font-medium text-amber-700">
+                        <Lock size={10}/>Đã khoá
+                      </span>
+                    )}
+                    {ok&&!exam.locked&&<span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs">✓ Đạt</span>}
+                    {last&&!ok&&!exam.locked&&<span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">✗ Chưa đạt</span>}
                   </div>
-                  <p className="text-xs text-slate-500 mb-2 line-clamp-1">{exam.desc}</p>
-                  <div className="flex flex-wrap gap-2 text-xs text-slate-400">
+                  <p className={`text-xs mb-2 line-clamp-1 ${exam.locked?'text-slate-400':'text-slate-500'}`}>{exam.desc}</p>
+                  <div className={`flex flex-wrap gap-2 text-xs ${exam.locked?'text-slate-400':'text-slate-400'}`}>
                     <span className="flex items-center gap-1"><FileText size={10}/>{exam.qIds.length} câu</span>
                     <span className="flex items-center gap-1"><Clock size={10}/>{exam.time} phút</span>
                     <span className="flex items-center gap-1"><Award size={10}/>Đạt: {exam.pass}%</span>
-                    {last&&<span className="text-slate-500">Điểm: {last.score}%</span>}
+                    {last&&<span className={exam.locked?'text-slate-400':'text-slate-500'}>Điểm: {last.score}%</span>}
                   </div>
                 </div>
-                <button onClick={()=>onStart(exam)} className="flex items-center gap-1 bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs hover:bg-emerald-700 flex-shrink-0">
+                <button disabled={exam.locked} onClick={()=>onStart(exam)} className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs flex-shrink-0 ${exam.locked?'bg-slate-200 text-slate-400 cursor-not-allowed':'bg-emerald-600 text-white hover:bg-emerald-700'}`} title={exam.locked?'Đề thi đã bị khoá':'Bắt đầu thi'}>
                   <Play size={11}/>{last?'Thi lại':'Bắt đầu'}
                 </button>
               </div>
@@ -2241,8 +2259,8 @@ const Login = ({onLogin, employees}) => {
         {/* HEADER */}
         <div className="text-center">
           <div className="flex justify-center"><Emblem size={128}/></div>
-          <h1 className="mt-3 text-xl sm:text-1xl font-bold text-[#0B4F32] tracking-tight">CỤC HẬU CẦN KỸ THUẬT QUÂN KHU 4</h1>
-          <p className="mt-1.5 text-slate-600 text-sm">BỆNH VIỆN QUÂN Y 4</p>
+          <h1 className="mt-3 text-xl sm:text-1xl font-bold text-[#0B4F32] tracking-tight">BỆNH VIỆN QUÂN Y 4</h1>
+          <p className="mt-1.5 text-slate-600 text-sm">Hệ thống thi trắc nghiệm</p>
           <StarDivider/>
         </div>
 
