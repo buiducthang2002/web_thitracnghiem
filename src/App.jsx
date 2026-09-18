@@ -869,7 +869,8 @@ LƯU Ý:
 // ── EXAMS ──
 const Exams = ({exams, setExams, questions}) => {
   const [modal, setModal] = useState(false);
-  const [ne, setNe] = useState({title:'',desc:'',qIds:[],time:20,pass:70});
+  const [ne, setNe] = useState({title:'',desc:'',qIds:[],time:20,pass:70,sessions:[]});
+  const [editingExamId, setEditingExamId] = useState(null);
   const toggleQ = id => setNe(p=>({...p,qIds:p.qIds.includes(id)?p.qIds.filter(x=>x!==id):[...p.qIds,id]}));
   const sortedQuestions = orderedQuestions(questions);
   const importedGroups = Object.values(sortedQuestions.reduce((groups, q) => {
@@ -907,8 +908,35 @@ const Exams = ({exams, setExams, questions}) => {
   });
   const create = () => {
     if(!ne.title.trim()||ne.qIds.length===0) return;
-    setExams(p=>[...p,{...ne,id:Date.now()}]); setModal(false);
-    setNe({title:'',desc:'',qIds:[],time:20,pass:70});
+    if(editingExamId) {
+      setExams(p=>p.map(e=>e.id===editingExamId?{...ne,id:editingExamId}:e));
+      setEditingExamId(null);
+    } else {
+      setExams(p=>[...p,{...ne,id:Date.now()}]);
+    }
+    setModal(false);
+    setNe({title:'',desc:'',qIds:[],time:20,pass:70,sessions:[]});
+  };
+
+  const generateCode = () => Math.random().toString(36).substring(2,6).toUpperCase();
+
+  const addSession = () => {
+    const newSession = {id:Date.now(),name:`Kíp ${ne.sessions.length+1}`,code:generateCode()};
+    setNe(p=>({...p,sessions:[...p.sessions,newSession]}));
+  };
+
+  const removeSession = (id) => {
+    setNe(p=>({...p,sessions:p.sessions.filter(s=>s.id!==id)}));
+  };
+
+  const updateSession = (id, field, value) => {
+    setNe(p=>({...p,sessions:p.sessions.map(s=>s.id===id?{...s,[field]:value}:s)}));
+  };
+
+  const openEdit = (exam) => {
+    setNe({...exam});
+    setEditingExamId(exam.id);
+    setModal(true);
   };
   return (
     <div>
@@ -920,8 +948,8 @@ const Exams = ({exams, setExams, questions}) => {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white z-10">
-              <h2 className="font-bold text-slate-800">Tạo đề thi mới</h2>
-              <button onClick={()=>setModal(false)} className="text-slate-400 hover:text-slate-600"><X size={18}/></button>
+              <h2 className="font-bold text-slate-800">{editingExamId?'Sửa đề thi':'Tạo đề thi mới'}</h2>
+              <button onClick={()=>{setModal(false);setEditingExamId(null);setNe({title:'',desc:'',qIds:[],time:20,pass:70,sessions:[]});}} className="text-slate-400 hover:text-slate-600"><X size={18}/></button>
             </div>
             <div className="p-5 space-y-4">
               <div><label className="text-xs font-medium text-slate-600 mb-1 block">Tên đề thi</label>
@@ -933,6 +961,26 @@ const Exams = ({exams, setExams, questions}) => {
                   <input type="number" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={ne.time} onChange={e=>setNe({...ne,time:+e.target.value})}/></div>
                 <div><label className="text-xs font-medium text-slate-600 mb-1 block">Điểm đạt (%)</label>
                   <input type="number" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={ne.pass} onChange={e=>setNe({...ne,pass:+e.target.value})}/></div>
+              </div>
+              <div><label className="text-xs font-medium text-slate-600 mb-2 block">Quản lý mã kíp thi</label>
+                <div className="space-y-2 mb-3">
+                  {ne.sessions.map(session=>(
+                    <div key={session.id} className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <div className="flex-1">
+                        <input type="text" className="w-full border border-slate-200 rounded-lg px-2 py-1 text-xs mb-1" value={session.name} onChange={e=>updateSession(session.id,'name',e.target.value)} placeholder="Tên kíp"/>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500">Mã:</span>
+                          <code className="text-xs font-mono bg-white border border-slate-200 rounded px-2 py-1 flex-1">{session.code}</code>
+                          <button type="button" onClick={()=>updateSession(session.id,'code',generateCode())} className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100">Tạo mới</button>
+                        </div>
+                      </div>
+                      <button type="button" onClick={()=>removeSession(session.id)} className="text-red-400 hover:text-red-600 flex-shrink-0"><Trash2 size={14}/></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={addSession} className="w-full py-2 border border-emerald-300 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium hover:bg-emerald-100">
+                    <Plus size={12} className="inline mr-1"/>Thêm kíp thi
+                  </button>
+                </div>
               </div>
               <div><label className="text-xs font-medium text-slate-600 mb-2 block">Chọn câu hỏi ({ne.qIds.length} đã chọn)</label>
                 {importGroups.length > 0 && (
@@ -974,13 +1022,19 @@ const Exams = ({exams, setExams, questions}) => {
               <div className="flex-1">
                 <h3 className="font-semibold text-slate-800 mb-1">{exam.title}</h3>
                 <p className="text-sm text-slate-500 mb-3">{exam.desc}</p>
-                <div className="flex gap-4 text-xs text-slate-500">
+                <div className="flex gap-4 text-xs text-slate-500 flex-wrap">
                   <span className="flex items-center gap-1"><FileText size={12}/>{exam.qIds.length} câu hỏi</span>
                   <span className="flex items-center gap-1"><Clock size={12}/>{exam.time} phút</span>
                   <span className="flex items-center gap-1"><Award size={12}/>Điểm đạt: {exam.pass}%</span>
+                  {exam.sessions && exam.sessions.length > 0 && (
+                    <span className="flex items-center gap-1"><Shield size={12}/>{exam.sessions.length} kíp thi</span>
+                  )}
                 </div>
               </div>
-              <button onClick={()=>setExams(p=>p.filter(e=>e.id!==exam.id))} className="text-slate-300 hover:text-red-400"><Trash2 size={16}/></button>
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={()=>openEdit(exam)} className="text-slate-400 hover:text-blue-600" title="Chỉnh sửa"><FileText size={16}/></button>
+                <button onClick={()=>setExams(p=>p.filter(e=>e.id!==exam.id))} className="text-slate-300 hover:text-red-400" title="Xóa"><Trash2 size={16}/></button>
+              </div>
             </div>
           </div>
         ))}
@@ -1836,6 +1890,49 @@ const MyResults = ({user, exams, results}) => {
   );
 };
 
+// ── SESSION CODE MODAL ──
+const SessionCodeModal = ({exam, onConfirm, onCancel}) => {
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const isValid = exam.sessions && exam.sessions.some(s => s.code === code.trim().toUpperCase());
+  const handleSubmit = () => {
+    if (!code.trim()) return setError('Vui lòng nhập mã kíp');
+    if (!isValid) return setError('Mã kíp không đúng. Vui lòng kiểm tra lại');
+    onConfirm();
+  };
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+        <div className="px-6 py-4 border-b">
+          <h2 className="font-bold text-slate-800 text-lg">Nhập mã kíp thi</h2>
+          <p className="text-xs text-slate-500 mt-1">Để bắt đầu thi, bạn cần nhập mã kíp được cấp</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-xs font-medium text-slate-600 mb-2 block">Mã kíp thi</label>
+            <input
+              autoFocus
+              type="text"
+              className={`w-full border-2 rounded-xl px-4 py-3 text-lg font-mono uppercase tracking-widest text-center transition-all ${
+                error ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50 focus:border-emerald-500 focus:bg-white'
+              }`}
+              placeholder="VD: A1B2C3"
+              value={code}
+              onChange={(e) => { setCode(e.target.value); setError(''); }}
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            />
+            {error && <p className="text-xs text-red-600 mt-2 flex items-center gap-1"><AlertCircle size={12}/>{error}</p>}
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={onCancel} className="flex-1 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Hủy</button>
+            <button onClick={handleSubmit} disabled={!code.trim()} className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">Vào thi</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── EXAM SCREEN ──
 const ExamScreen = ({user, exam, questions, onFinish}) => {
   const [qs] = useState(() => exam.qIds.map(id => questions.find(q => q.id === id)).filter(Boolean));
@@ -2601,6 +2698,7 @@ export default function App() {
   const [exams, setExams] = useState([]);
   const [results, setResults] = useState([]);
   const [activeExam, setActiveExam] = useState(null);
+  const [pendingExam, setPendingExam] = useState(null);
   const [lastResult, setLastResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [dbError, setDbError] = useState(missingConfig.length
@@ -2691,7 +2789,14 @@ export default function App() {
 
   const login     = u => { setUser(u); setView(u.role==="admin"?"dashboard":"home"); };
   const logout    = () => { setUser(null); setActiveExam(null); setLastResult(null); };
-  const startExam = exam => { setActiveExam(exam); setLastResult(null); };
+  const startExam = exam => {
+    setLastResult(null);
+    if (exam.sessions && exam.sessions.length > 0) {
+      setPendingExam(exam);
+    } else {
+      setActiveExam(exam);
+    }
+  };
   const finishExam = async r => {
     // Ghi hỏng thì vẫn cho thí sinh xem kết quả (banner đỏ sẽ báo chưa lưu được),
     // không để kẹt lại ở màn hình làm bài.
@@ -2723,6 +2828,7 @@ export default function App() {
   );
 
   if (!user) return <>{banner}<Login onLogin={login} employees={employees}/></>;
+  if (pendingExam) return <>{banner}<SessionCodeModal exam={pendingExam} onConfirm={()=>{setActiveExam(pendingExam);setPendingExam(null);}} onCancel={()=>setPendingExam(null)}/></>;
   if (activeExam) return <>{banner}<ExamScreen user={user} exam={activeExam} questions={questions} onFinish={finishExam}/></>;
   if (lastResult) {
     const exam = exams.find(e=>e.id===lastResult.examId);
