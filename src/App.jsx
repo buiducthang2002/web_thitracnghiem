@@ -4,7 +4,7 @@ import mammoth from "mammoth";
 import legacyDocToText from "legacy-doc-reader";
 import JSZip from "jszip";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { BookOpen, Users, FileText, BarChart2, LogOut, Plus, Trash2, Clock, CheckCircle, Award, Home, Play, TrendingUp, TrendingDown, X, ChevronRight, Shield, ShieldCheck, Star, ArrowRight, ArrowLeft, Upload, Download, AlertCircle, Info, FileSearch, PieChart as PieChartIcon, Lock, LockOpen, Eye, EyeOff } from "lucide-react";
+import { BookOpen, Users, FileText, BarChart2, LogOut, Plus, Trash2, Clock, CheckCircle, Award, Home, Play, TrendingUp, TrendingDown, X, ChevronRight, Shield, ShieldCheck, Star, ArrowRight, ArrowLeft, Upload, Download, AlertCircle, Info, FileSearch, PieChart as PieChartIcon, Lock, LockOpen, Eye, EyeOff, User } from "lucide-react";
 import { db, missingConfig, projectId } from "./firebase";
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from "firebase/firestore";
 
@@ -178,9 +178,9 @@ const Dashboard = ({results, exams, questions, employees}) => {
           <h3 className="text-sm font-semibold text-slate-700 mb-2">Tỉ lệ đạt/trượt</h3>
           <div className="flex items-center gap-4">
             <div className="flex-shrink-0">
-              <ResponsiveContainer width={110} height={110}>
-                <PieChart><Pie data={pie} cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value">{pie.map((d,i)=><Cell key={i} fill={d.c}/>)}</Pie><Tooltip/></PieChart>
-              </ResponsiveContainer>
+              <PieChart width={110} height={110}>
+                <Pie data={pie} cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value">{pie.map((d,i)=><Cell key={i} fill={d.c}/>)}</Pie><Tooltip/>
+              </PieChart>
               <div className="flex justify-center gap-3 mt-1">
                 {pie.map(d=><div key={d.name} className="flex items-center gap-1"><div className="w-2 h-2 rounded-full" style={{background:d.c}}/><span className="text-xs text-slate-500">{d.name}: {d.value}</span></div>)}
               </div>
@@ -1714,14 +1714,12 @@ const Reports = ({results, exams, employees}) => {
               {totalAttempts===0 ? (
                 <div className="w-[164px] h-[164px] rounded-full border-[22px] border-slate-100"/>
               ) : (
-                <ResponsiveContainer width={180} height={180}>
-                  <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={58} outerRadius={82} dataKey="value" startAngle={90} endAngle={-270}>
-                      {pieData.map((d,i)=><Cell key={i} fill={d.c}/>)}
-                    </Pie>
-                    <Tooltip formatter={(v,n)=>[v+' lượt',n]}/>
-                  </PieChart>
-                </ResponsiveContainer>
+                <PieChart width={180} height={180}>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={58} outerRadius={82} dataKey="value" startAngle={90} endAngle={-270}>
+                    {pieData.map((d,i)=><Cell key={i} fill={d.c}/>)}
+                  </Pie>
+                  <Tooltip formatter={(v,n)=>[v+' lượt',n]}/>
+                </PieChart>
               )}
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <span className="text-2xl font-bold text-slate-800">{totalAttempts}</span>
@@ -2196,34 +2194,41 @@ const Login = ({onLogin, employees}) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f5faf6] p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <Emblem size={72} className="mx-auto mb-3"/>
-          <h1 className="text-xl font-bold text-[#0B4F32]">BỆNH VIỆN QUÂN Y 4</h1>
-          <p className="text-slate-500 text-sm mt-1">Hệ thống thi trắc nghiệm</p>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-[#fafafa] p-4">
+      <div className="w-full max-w-sm">
+        <h1 className="font-serif text-3xl font-bold text-slate-900">Đăng nhập</h1>
+        <p className="text-slate-500 text-sm mt-1.5">Sử dụng tài khoản khoa/phòng do quản trị cấp.</p>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
-          <h2 className="text-3xl font-extrabold text-slate-900 text-center mb-6">Đăng nhập</h2>
-          <form onSubmit={handleLogin} className="space-y-4" noValidate>
-            <input
-              type="text"
-              placeholder="Tài khoản"
-              autoComplete="username"
-              autoFocus
-              value={account}
-              onChange={e=>{setAccount(e.target.value); setErr('');}}
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0B4F32] focus:ring-2 focus:ring-emerald-500/20 transition"
-            />
+        <form onSubmit={handleLogin} className="mt-6 space-y-4" noValidate autoComplete="off">
+          <div>
+            <label htmlFor="login-account" className="block text-sm text-slate-700 mb-1.5">Tên đăng nhập</label>
             <div className="relative">
+              <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+              <input
+                type="text"
+                id="login-account"
+                name="hvqy4-account"
+                autoComplete="off"
+                autoFocus
+                value={account}
+                onChange={e=>{setAccount(e.target.value); setErr('');}}
+                className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:bg-white focus:border-[#0B4F32] focus:ring-2 focus:ring-emerald-500/20 transition"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="login-password" className="block text-sm text-slate-700 mb-1.5">Mật khẩu</label>
+            <div className="relative">
+              <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
               <input
                 type={showPassword ? 'text' : 'password'}
-                placeholder="Mật khẩu"
-                autoComplete="current-password"
+                id="login-password"
+                name="hvqy4-password"
+                autoComplete="new-password"
                 value={password}
                 onChange={e=>{setPassword(e.target.value); setErr('');}}
-                className="w-full px-4 py-3 pr-11 border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0B4F32] focus:ring-2 focus:ring-emerald-500/20 transition"
+                className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:bg-white focus:border-[#0B4F32] focus:ring-2 focus:ring-emerald-500/20 transition"
               />
               <button
                 type="button"
@@ -2231,30 +2236,34 @@ const Login = ({onLogin, employees}) => {
                 aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
-                {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+                {showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
               </button>
             </div>
+          </div>
 
-            {err && <p role="alert" className="text-red-600 text-sm text-center">{err}</p>}
-
-            <button type="submit" className="w-full bg-gradient-to-r from-[#0B4F32] to-emerald-600 hover:from-[#0a4429] hover:to-emerald-700 text-white py-3 rounded-full font-semibold shadow-lg shadow-emerald-900/15 transition-all">
-              Đăng nhập
-            </button>
-          </form>
-
-          <div className="text-center mt-4">
+          <div className="flex items-center justify-between text-sm">
+            <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
+              <input type="checkbox" defaultChecked className="w-4 h-4 rounded border-slate-300 accent-[#0B4F32]"/>
+              Ghi nhớ đăng nhập
+            </label>
             <button
               type="button"
               onClick={()=>setErr('Vui lòng liên hệ quản trị viên để được cấp lại mật khẩu.')}
-              className="text-emerald-700 text-sm hover:underline"
+              className="text-emerald-700 hover:underline"
             >
               Quên mật khẩu?
             </button>
           </div>
-        </div>
 
-        <div className="mt-6 flex items-center justify-center gap-2 text-slate-400 text-xs">
-          <ShieldCheck size={14}/> Bảo mật - Chính xác - Hiệu quả
+          {err && <p role="alert" className="text-red-600 text-sm">{err}</p>}
+
+          <button type="submit" className="w-full bg-[#0B4F32] hover:bg-[#0a4429] text-white py-2.5 rounded-lg font-semibold transition-colors">
+            Đăng nhập
+          </button>
+        </form>
+
+        <div className="mt-6 text-center text-slate-400 text-xs">
+          © 2026 Ban công nghệ thông tin · Bệnh viện Quân y 4
         </div>
       </div>
     </div>
