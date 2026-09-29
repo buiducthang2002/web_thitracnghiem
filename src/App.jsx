@@ -4,7 +4,7 @@ import mammoth from "mammoth";
 import legacyDocToText from "legacy-doc-reader";
 import JSZip from "jszip";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { BookOpen, Users, FileText, BarChart2, LogOut, Plus, Trash2, Clock, CheckCircle, Award, Home, Play, TrendingUp, TrendingDown, X, ChevronRight, Shield, ShieldCheck, Star, ArrowRight, ArrowLeft, Upload, Download, AlertCircle, Info, FileSearch, PieChart as PieChartIcon, Lock, LockOpen, Eye } from "lucide-react";
+import { BookOpen, Users, FileText, BarChart2, LogOut, Plus, Trash2, Clock, CheckCircle, Award, Home, Play, TrendingUp, TrendingDown, X, ChevronRight, Shield, ShieldCheck, Star, ArrowRight, ArrowLeft, Upload, Download, AlertCircle, Info, FileSearch, PieChart as PieChartIcon, Lock, LockOpen, Eye, EyeOff } from "lucide-react";
 import { db, missingConfig, projectId } from "./firebase";
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from "firebase/firestore";
 
@@ -2147,7 +2147,7 @@ const EmblemSvg = ({size=100}) => {
 
 // Quốc huy: ưu tiên file ảnh trong public/, không có thì tự vẽ bằng SVG.
 // Đặt file của bạn vào public/ với một trong các tên dưới đây (hoặc sửa lại danh sách).
-const EMBLEM_SRCS = ['/cuchckt.jpg'];
+const EMBLEM_SRCS = ['/bvqy4.jpg'];
 const Emblem = ({size=100, className=''}) => {
   const [tried, setTried] = useState(0);
   if (tried >= EMBLEM_SRCS.length) return <EmblemSvg size={size}/>;
@@ -2166,187 +2166,95 @@ const Emblem = ({size=100, className=''}) => {
 
 // Nền: sóng xanh + watermark trụ sở và ngôi sao
 const Login = ({onLogin, employees}) => {
-  const [adminForm, setAdminForm] = useState({user:'', pass:'', err:''});
-  const [candidateForm, setCandidateForm] = useState({account:'', pass:'', err:''});
-  const [role, setRole] = useState('admin'); // 'admin' | 'employee'
+  const [account, setAccount] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [err, setErr] = useState('');
 
-  const handleAdminLogin = () => {
-    if(adminForm.user==='admin' && adminForm.pass==='123') {
-      onLogin({role:'admin', id:0, name:'Quản trị viên', dept:'Admin'});
-    } else {
-      setAdminForm(f=>({...f, err:'Tên đăng nhập hoặc mật khẩu không đúng'}));
-    }
-  };
-
-  const handleCandidateLogin = (event) => {
+  const handleLogin = (event) => {
     event.preventDefault();
-    const account = candidateForm.account.trim();
-    if (!account) {
-      setCandidateForm(f=>({...f, err:'Vui lòng nhập tài khoản.'}));
+    const acc = account.trim();
+    if (!acc) { setErr('Vui lòng nhập tài khoản.'); return; }
+    if (!password) { setErr('Vui lòng nhập mật khẩu.'); return; }
+
+    if (acc === 'admin' && password === '123') {
+      onLogin({role:'admin', id:0, name:'Quản trị viên', dept:'Admin'});
       return;
     }
-    const emp = employees.find(e => e.account === account);
-    if (!emp) {
-      setCandidateForm(f=>({...f, err:'Tài khoản không tồn tại.'}));
+
+    const emp = employees.find(e => e.account === acc);
+    if (emp) {
+      if (password !== emp.account) {
+        setErr('Mật khẩu không đúng. Vui lòng thử lại.');
+        return;
+      }
+      onLogin({role:'employee', ...emp});
       return;
     }
-    if (!candidateForm.pass) {
-      setCandidateForm(f=>({...f, err:'Vui lòng nhập mật khẩu.'}));
-      return;
-    }
-    if (candidateForm.pass !== emp.account) {
-      setCandidateForm(f=>({...f, err:'Mật khẩu không đúng. Vui lòng thử lại.'}));
-      return;
-    }
-    setCandidateForm({account:'', pass:'', err:''});
-    onLogin({role:'employee', ...emp});
+
+    setErr('Tài khoản hoặc mật khẩu không đúng.');
   };
 
   return (
-    <div className="flex h-screen bg-white">
-      {/* Left Sidebar */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#0B4F32] to-emerald-700 text-white flex-col justify-between p-12 relative overflow-hidden">
-        {/* Background decoration */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -mr-40 -mt-40"/>
-        <div className="absolute bottom-0 left-0 w-72 h-72 bg-white/5 rounded-full -ml-32 -mb-32"/>
+    <div className="min-h-screen flex items-center justify-center bg-[#f5faf6] p-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <Emblem size={72} className="mx-auto mb-3"/>
+          <h1 className="text-xl font-bold text-[#0B4F32]">BỆNH VIỆN QUÂN Y 4</h1>
+          <p className="text-slate-500 text-sm mt-1">Hệ thống thi trắc nghiệm</p>
+        </div>
 
-        <div className="relative z-10">
-          <div className="flex items-center gap-4 mb-12">
-            <Emblem size={64}/>
-            <div>
-              <h1 className="text-3xl font-bold">BỆNH VIỆN QUÂN Y 4</h1>
-              <p className="text-emerald-100 text-sm">Hệ thống quản trị</p>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
+          <h2 className="text-3xl font-extrabold text-slate-900 text-center mb-6">Đăng nhập</h2>
+          <form onSubmit={handleLogin} className="space-y-4" noValidate>
+            <input
+              type="text"
+              placeholder="Tài khoản"
+              autoComplete="username"
+              autoFocus
+              value={account}
+              onChange={e=>{setAccount(e.target.value); setErr('');}}
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0B4F32] focus:ring-2 focus:ring-emerald-500/20 transition"
+            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Mật khẩu"
+                autoComplete="current-password"
+                value={password}
+                onChange={e=>{setPassword(e.target.value); setErr('');}}
+                className="w-full px-4 py-3 pr-11 border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0B4F32] focus:ring-2 focus:ring-emerald-500/20 transition"
+              />
+              <button
+                type="button"
+                onClick={()=>setShowPassword(s=>!s)}
+                aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+              </button>
             </div>
-          </div>
 
-          <h2 className="text-2xl font-bold mb-6">Hệ thống quản trị bệnh viện</h2>
-          <p className="text-emerald-50 text-sm leading-relaxed mb-8">
-            Bảo cao trực, chia sẻ tài liệu, chăm sóc thí sinh và phân công kíp trực — tất cả trong một nơi.
-          </p>
+            {err && <p role="alert" className="text-red-600 text-sm text-center">{err}</p>}
 
-          <div className="space-y-4">
-            {[
-              {icon: '✓', text: 'Bảo cao trực'},
-              {icon: '✓', text: 'Thư nội bộ'},
-              {icon: '✓', text: 'Kíp trực'}
-            ].map((item, i) => (
-              <div key={i} className="flex items-center gap-3 text-emerald-50">
-                <span className="text-xl">{item.icon}</span>
-                <span>{item.text}</span>
-              </div>
-            ))}
+            <button type="submit" className="w-full bg-gradient-to-r from-[#0B4F32] to-emerald-600 hover:from-[#0a4429] hover:to-emerald-700 text-white py-3 rounded-full font-semibold shadow-lg shadow-emerald-900/15 transition-all">
+              Đăng nhập
+            </button>
+          </form>
+
+          <div className="text-center mt-4">
+            <button
+              type="button"
+              onClick={()=>setErr('Vui lòng liên hệ quản trị viên để được cấp lại mật khẩu.')}
+              className="text-emerald-700 text-sm hover:underline"
+            >
+              Quên mật khẩu?
+            </button>
           </div>
         </div>
 
-        <div className="relative z-10 text-emerald-100 text-xs flex items-center gap-2">
+        <div className="mt-6 flex items-center justify-center gap-2 text-slate-400 text-xs">
           <ShieldCheck size={14}/> Bảo mật - Chính xác - Hiệu quả
-        </div>
-      </div>
-
-      {/* Right Form Area */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-8">
-        <div className="w-full max-w-md">
-          {/* Mobile header */}
-          <div className="lg:hidden text-center mb-8">
-            <Emblem size={64} className="mx-auto mb-3"/>
-            <h1 className="text-2xl font-bold text-slate-800">BỆNH VIỆN QUÂN Y 4</h1>
-            <p className="text-slate-500 text-sm mt-1">Hệ thống thi trắc nghiệm</p>
-          </div>
-
-          {/* Role tabs */}
-          <div className="flex gap-3 mb-8">
-            <button onClick={()=>{setRole('admin'); setAdminForm({user:'',pass:'',err:''});}} className={`flex-1 py-2.5 px-4 rounded-lg font-medium text-sm transition-all ${role==='admin' ? 'bg-[#0B4F32] text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-              Quản trị viên
-            </button>
-            <button onClick={()=>{setRole('employee'); setCandidateForm({account:'',pass:'',err:''});}} className={`flex-1 py-2.5 px-4 rounded-lg font-medium text-sm transition-all ${role==='employee' ? 'bg-[#0B4F32] text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-              Thí sinh
-            </button>
-          </div>
-
-          {/* Admin Login Form */}
-          {role === 'admin' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Tên đăng nhập</label>
-                <input
-                  type="text"
-                  placeholder="admin"
-                  value={adminForm.user}
-                  onChange={e=>setAdminForm(f=>({...f,user:e.target.value,err:''}))}
-                  onKeyDown={e=>e.key==='Enter'&&handleAdminLogin()}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:border-[#0B4F32] focus:ring-2 focus:ring-emerald-500/20 transition"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Mật khẩu</label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={adminForm.pass}
-                    onChange={e=>setAdminForm(f=>({...f,pass:e.target.value,err:''}))}
-                    onKeyDown={e=>e.key==='Enter'&&handleAdminLogin()}
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:border-[#0B4F32] focus:ring-2 focus:ring-emerald-500/20 transition"
-                  />
-                  <Eye size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-                </div>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <label className="flex items-center gap-2 text-slate-600">
-                  <input type="checkbox" className="w-4 h-4 rounded border-slate-300"/>
-                  Ghi nhớ đăng nhập
-                </label>
-              </div>
-              {adminForm.err && <div className="text-red-600 text-sm">{adminForm.err}</div>}
-              <button onClick={handleAdminLogin} className="w-full bg-gradient-to-r from-[#0B4F32] to-emerald-600 hover:from-[#0a4429] hover:to-emerald-700 text-white py-2.5 rounded-lg font-semibold transition-all">
-                Đăng nhập
-              </button>
-            </div>
-          )}
-
-          {/* Candidate Login Form */}
-          {role === 'employee' && (
-            <form onSubmit={handleCandidateLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Tài khoản</label>
-                <input
-                  type="text"
-                  placeholder="VD: nguyenvanA"
-                  value={candidateForm.account}
-                  onChange={e=>setCandidateForm(f=>({...f,account:e.target.value,err:''}))}
-                  autoFocus
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:border-[#0B4F32] focus:ring-2 focus:ring-emerald-500/20 transition"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Mật khẩu</label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={candidateForm.pass}
-                    onChange={e=>setCandidateForm(f=>({...f,pass:e.target.value,err:''}))}
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:border-[#0B4F32] focus:ring-2 focus:ring-emerald-500/20 transition"
-                  />
-                  <Eye size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-                </div>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <label className="flex items-center gap-2 text-slate-600">
-                  <input type="checkbox" className="w-4 h-4 rounded border-slate-300"/>
-                  Ghi nhớ đăng nhập
-                </label>
-              </div>
-              {candidateForm.err && <div className="text-red-600 text-sm">{candidateForm.err}</div>}
-              <button type="submit" className="w-full bg-gradient-to-r from-[#0B4F32] to-emerald-600 hover:from-[#0a4429] hover:to-emerald-700 text-white py-2.5 rounded-lg font-semibold transition-all">
-                Vào trang thi
-              </button>
-            </form>
-          )}
-
-          <div className="mt-6 text-center text-slate-500 text-xs">
-            © 2026 Ban công nghệ thông tin - Bệnh viện Quân y 4
-          </div>
         </div>
       </div>
     </div>
