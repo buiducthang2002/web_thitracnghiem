@@ -703,7 +703,7 @@ LƯU Ý:
       {/* Preview modal */}
       {previewList && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-xl w-full max-h-[85vh] flex flex-col shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-xl max-h-[85vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b">
               <div>
                 <h2 className="font-bold text-slate-800">Xem trước câu hỏi import</h2>
@@ -1233,7 +1233,7 @@ const downloadTemplate = () => {
       {/* Modal Thêm / Sửa */}
       {(modal?.mode==='add' || modal?.mode==='edit') && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md w-full shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b">
               <h2 className="font-bold text-slate-800">{modal.mode==='add'?'Thêm thí sinh mới':'Chỉnh sửa thí sinh'}</h2>
               <button onClick={closeModal} className="text-slate-400 hover:text-slate-600"><X size={18}/></button>
@@ -1308,7 +1308,7 @@ const downloadTemplate = () => {
       {/* Modal Xóa */}
       {modal?.mode==='delete' && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm sm:max-w-sm w-full shadow-2xl p-6">
+          <div className="bg-white rounded-2xl w-full max-w-sm sm:max-w-sm shadow-2xl p-6">
             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Trash2 size={20} className="text-red-500"/>
             </div>
@@ -1457,7 +1457,7 @@ const downloadTemplate = () => {
                   return (
                     <tr key={emp.id} className="border-t border-slate-50 hover:bg-slate-50/50 transition-colors">
                       <td className="px-5 py-3 text-sm font-medium text-slate-800">{emp.name}</td>
-                      <td className="px-5 py-3 text-sm text-slate-600 font-mono text-slate-500">{emp.account||'--'}</td>
+                      <td className="px-5 py-3 text-sm text-slate-600 font-mono">{emp.account||'--'}</td>
                       <td className="px-5 py-3 text-sm font-mono text-slate-600">1</td>
                       <td className="px-5 py-3 text-sm text-slate-600">{rs.length}</td>
                       <td className="px-5 py-3 text-sm font-semibold text-emerald-600">{passed}</td>
