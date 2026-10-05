@@ -2171,6 +2171,7 @@ const Login = ({onLogin, employees}) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [err, setErr] = useState('');
+  const [remember, setRemember] = useState(true);
 
   const handleLogin = (event) => {
     event.preventDefault();
@@ -2179,7 +2180,7 @@ const Login = ({onLogin, employees}) => {
     if (!password) { setErr('Vui lòng nhập mật khẩu.'); return; }
 
     if (acc === 'admin' && password === '123') {
-      onLogin({role:'admin', id:0, name:'Quản trị viên', dept:'Admin'});
+      onLogin({role:'admin', id:0, name:'Quản trị viên', dept:'Admin'}, remember);
       return;
     }
 
@@ -2189,7 +2190,7 @@ const Login = ({onLogin, employees}) => {
         setErr('Mật khẩu không đúng. Vui lòng thử lại.');
         return;
       }
-      onLogin({role:'employee', ...emp});
+      onLogin({role:'employee', ...emp}, remember);
       return;
     }
 
@@ -2246,7 +2247,7 @@ const Login = ({onLogin, employees}) => {
 
           <div className="flex items-center justify-between text-sm">
             <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
-              <input type="checkbox" defaultChecked className="w-4 h-4 rounded border-slate-300 accent-[#0B4F32]"/>
+              <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)} className="w-4 h-4 rounded border-slate-300 accent-[#0B4F32]"/>
               Ghi nhớ đăng nhập
             </label>
             <button
@@ -2645,8 +2646,36 @@ export default function App() {
   const setExamsSync     = makeSyncSetter(COL.exams, setExams);
   const setResultsSync   = makeSyncSetter(COL.results, setResults);
 
-  const login     = u => { setUser(u); setView(u.role==="admin"?"dashboard":"home"); };
-  const logout    = () => { setUser(null); setActiveExam(null); setLastResult(null); };
+  // Phiên đăng nhập: chỉ lưu role + id (không lưu mật khẩu). "Ghi nhớ" → localStorage,
+  // không ghi nhớ → sessionStorage (mất khi đóng tab).
+  const SESSION_KEY = 'tn_session';
+  const readSession = () => {
+    for (const s of ['localStorage', 'sessionStorage']) {
+      try { const v = window[s].getItem(SESSION_KEY); if (v) return JSON.parse(v); } catch { /* bị chặn storage */ }
+    }
+    return null;
+  };
+  const clearSession = () => {
+    for (const s of ['localStorage', 'sessionStorage']) { try { window[s].removeItem(SESSION_KEY); } catch { /* bỏ qua */ } }
+  };
+  const login = (u, remember) => {
+    clearSession();
+    try { (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify({role:u.role, id:u.id})); } catch { /* bỏ qua */ }
+    setUser(u); setView(u.role==="admin"?"dashboard":"home");
+  };
+  const logout    = () => { clearSession(); setUser(null); setActiveExam(null); setLastResult(null); };
+
+  // Tự đăng nhập lại khi mở app, sau khi danh sách thí sinh đã tải xong
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (loading || restoredRef.current) return;
+    restoredRef.current = true;
+    const s = readSession();
+    if (!s) return;
+    if (s.role === 'admin') { setUser({role:'admin', id:0, name:'Quản trị viên', dept:'Admin'}); setView('dashboard'); return; }
+    const emp = employees.find(e => String(e.id) === String(s.id));
+    if (emp) { setUser({role:'employee', ...emp}); setView('home'); } else clearSession();
+  }, [loading]);
   const startExam = exam => {
     // Mỗi thí sinh chỉ được thi mỗi đề một lần
     if (results.some(r => r.empId === user.id && r.examId === exam.id)) return;
