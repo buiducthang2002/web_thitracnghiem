@@ -1862,8 +1862,8 @@ const EmpHome = ({user, exams, results, onStart}) => {
                     {last&&<span className={exam.locked?'text-slate-400':'text-slate-500'}>Điểm: {last.score}%</span>}
                   </div>
                 </div>
-                <button disabled={exam.locked} onClick={()=>onStart(exam)} className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs flex-shrink-0 ${exam.locked?'bg-slate-200 text-slate-400 cursor-not-allowed':'bg-emerald-600 text-white hover:bg-emerald-700'}`} title={exam.locked?'Đề thi đã bị khoá':'Bắt đầu thi'}>
-                  <Play size={11}/>{last?'Thi lại':'Bắt đầu'}
+                <button disabled={exam.locked||!!last} onClick={()=>onStart(exam)} className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs flex-shrink-0 ${exam.locked||last?'bg-slate-200 text-slate-400 cursor-not-allowed':'bg-emerald-600 text-white hover:bg-emerald-700'}`} title={exam.locked?'Đề thi đã bị khoá':last?'Bạn đã thi đề này, mỗi thí sinh chỉ được thi 1 lần':'Bắt đầu thi'}>
+                  {last?<CheckCircle size={11}/>:<Play size={11}/>}{last?'Đã thi':'Bắt đầu'}
                 </button>
               </div>
             </div>
@@ -1960,6 +1960,9 @@ const ExamScreen = ({user, exam, questions, onFinish}) => {
   const doneRef = useRef(false);
 
   useEffect(()=>{ansRef.current=ans;},[ans]);
+
+  // Đổi câu (Trước / Tiếp / bảng câu hỏi) thì cuộn lên đầu để đọc từ đầu câu hỏi
+  useEffect(()=>{ window.scrollTo({top:0, behavior:'smooth'}); },[cur]);
 
   const submit = (a) => {
     if(doneRef.current) return; doneRef.current=true;
@@ -2645,6 +2648,8 @@ export default function App() {
   const login     = u => { setUser(u); setView(u.role==="admin"?"dashboard":"home"); };
   const logout    = () => { setUser(null); setActiveExam(null); setLastResult(null); };
   const startExam = exam => {
+    // Mỗi thí sinh chỉ được thi mỗi đề một lần
+    if (results.some(r => r.empId === user.id && r.examId === exam.id)) return;
     setLastResult(null);
     if (exam.sessions && exam.sessions.length > 0) {
       setPendingExam(exam);
