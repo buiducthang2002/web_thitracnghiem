@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import mammoth from "mammoth";
 import legacyDocToText from "legacy-doc-reader";
 import JSZip from "jszip";
+import confetti from "canvas-confetti";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { BookOpen, Users, FileText, BarChart2, LogOut, Plus, Trash2, Clock, CheckCircle, Award, Home, Play, TrendingUp, TrendingDown, X, ChevronRight, Shield, ShieldCheck, Star, ArrowRight, ArrowLeft, Upload, Download, AlertCircle, Info, FileSearch, PieChart as PieChartIcon, Lock, LockOpen, Eye, EyeOff, User } from "lucide-react";
 import { db, missingConfig, projectId } from "./firebase";
@@ -12,6 +13,7 @@ const COL = { employees:'employees', questions:'questions', exams:'exams', resul
 
 // Nhãn phương án trả lời. Firestore rules cho phép 2–10 phương án mỗi câu.
 const OPT_LETTERS = 'ABCDEFGHIJ';
+const MAX_LEAVES = 3; // rời màn hình thi đến lần này thì tự động nộp bài
 const MAX_OPTS = OPT_LETTERS.length;
 // Ký tự đánh dấu chỗ in đậm/gạch chân khi đọc file Word (không xuất hiện trong văn bản thật).
 const BOLD = '\u0001';
@@ -1842,7 +1844,7 @@ const EmpHome = ({user, exams, results, onStart}) => {
           return (
             <div key={exam.id} className={`rounded-xl p-4 shadow-sm border ${exam.locked?'bg-slate-50 border-slate-200':'bg-white border-slate-100'}`}>
               <div className="flex items-start gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${exam.locked?'bg-slate-100 text-slate-400':'bg-emerald-50 text-emerald-700'}`}><FileText size={18}/></div>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-slate-100 text-slate-400`}><FileText size={18}/></div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <h3 className={`font-semibold text-sm ${exam.locked?'text-slate-500':'text-slate-800'}`}>{exam.title}</h3>
@@ -1852,7 +1854,6 @@ const EmpHome = ({user, exams, results, onStart}) => {
                       </span>
                     )}
                     {ok&&!exam.locked&&<span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs">✓ Đạt</span>}
-                    {last&&!ok&&!exam.locked&&<span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">✗ Chưa đạt</span>}
                   </div>
                   <p className={`text-xs mb-2 line-clamp-1 ${exam.locked?'text-slate-400':'text-slate-500'}`}>{exam.desc}</p>
                   <div className={`flex flex-wrap gap-2 text-xs ${exam.locked?'text-slate-400':'text-slate-400'}`}>
@@ -1934,9 +1935,9 @@ const MyResults = ({user, exams, questions, results}) => {
       ):(
         <div className="space-y-3">
           {my.map(r=>{const exam=exams.find(e=>e.id===r.examId);const ok=exam&&r.score>=exam.pass;return(
-            <div key={r.id} onClick={()=>setOpenId(r.id)} className="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center gap-4 cursor-pointer hover:border-emerald-300 hover:shadow transition-all">
-              <div className={`w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 ${ok?'bg-emerald-100':'bg-red-100'}`}>
-                <span className={`text-lg font-bold ${ok?'text-emerald-600':'text-red-600'}`}>{r.score}%</span>
+            <div key={r.id} onClick={()=>setOpenId(r.id)} className="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center gap-4 cursor-pointer">
+              <div className={`w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 bg-slate-100`}>
+                <span className="text-lg font-bold text-slate-700">{r.score}%</span>
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-slate-800 text-sm">{exam?.title}</h3>
@@ -2018,8 +2019,36 @@ const ExamScreen = ({user, exam, questions, onFinish}) => {
     const correct = a.filter((x,i)=>x===qs[i].ans).length;
     const score = Math.round(correct/qs.length*100);
     const timeTaken = exam.time*60 - tLeft; // seconds used
-    onFinish({id:Date.now(),empId:user.id,examId:exam.id,score,correct,timeTaken,date:new Date().toLocaleDateString('vi-VN'),answers:[...a],questionSnapshot:qs.map(q=>({id:q.id,text:q.text,opts:[...q.opts],ans:q.ans}))});
+    onFinish({id:Date.now(),empId:user.id,examId:exam.id,score,correct,timeTaken,date:new Date().toLocaleDateString('vi-VN'),leaves:leaveCount.current,answers:[...a],questionSnapshot:qs.map(q=>({id:q.id,text:q.text,opts:[...q.opts],ans:q.ans}))});
   };
+
+  // Rời khỏi màn hình thi: lần 1 cảnh báo, lần 2 nộp bài luôn
+  const submitRef = useRef(submit);
+  submitRef.current = submit;
+  const leaveCount = useRef(0);
+  const awayRef = useRef(false);
+  const [warned, setWarned] = useState(false);
+  const [forcedEnd, setForcedEnd] = useState(false);
+
+  useEffect(()=>{
+    const onLeave = () => {
+      if(awayRef.current || doneRef.current) return; // blur + visibilitychange có thể bắn cùng lúc
+      awayRef.current = true;
+      leaveCount.current += 1;
+      if(leaveCount.current >= MAX_LEAVES){ setForcedEnd(true); submitRef.current(ansRef.current); }
+      else setWarned(true);
+    };
+    const onBack = () => { awayRef.current = false; };
+    const onVis = () => { document.hidden ? onLeave() : onBack(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('blur', onLeave);
+    window.addEventListener('focus', onBack);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('blur', onLeave);
+      window.removeEventListener('focus', onBack);
+    };
+  },[]);
 
   useEffect(()=>{
     const t = setInterval(()=>{
@@ -2037,6 +2066,16 @@ const ExamScreen = ({user, exam, questions, onFinish}) => {
 
   return (
     <div className="min-h-screen bg-green-950 flex flex-col">
+      {warned && !forcedEnd && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 text-center">
+            <AlertCircle size={40} className="mx-auto mb-3 text-red-500"/>
+            <h3 className="font-bold text-slate-800 text-lg mb-2">Cảnh báo!</h3>
+            <p className="text-sm text-slate-600 mb-5">Bạn đã rời khỏi màn hình làm bài <b>{leaveCount.current}/{MAX_LEAVES}</b> lần. Nếu rời đi đến lần thứ <b>{MAX_LEAVES}</b>, bài thi sẽ bị <b>kết thúc và nộp ngay</b> (còn {MAX_LEAVES-leaveCount.current} lần cảnh báo).</p>
+            <button onClick={()=>setWarned(false)} className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-sm hover:bg-emerald-700">Tôi đã hiểu, tiếp tục làm bài</button>
+          </div>
+        </div>
+      )}
       <div className="bg-green-950 px-6 py-4 flex items-center justify-between border-b border-green-900">
         <div><div className="text-white font-semibold">{exam.title}</div><div className="text-slate-400 text-sm">{user.name}</div></div>
         <div className={`flex items-center gap-2 text-lg font-mono font-bold px-4 py-2 rounded-lg ${low?'bg-red-500 text-white animate-pulse':'bg-green-900 text-white'}`}>
@@ -2115,6 +2154,23 @@ const ResultScreen = ({result, exam, questions, onBack}) => {
   const unanswered = result.answers.filter(x => x === -1).length;
   const wrong = total - result.correct - unanswered;
   const ok = result.score>=exam.pass;
+
+  // Đạt yêu cầu thì bắn pháo giấy chúc mừng trong ~3 giây
+  useEffect(()=>{
+    if(!ok) return;
+    const end = Date.now() + 3000;
+    const colors = ['#10b981','#fbbf24','#ef4444','#3b82f6','#a855f7'];
+    let raf;
+    const frame = () => {
+      confetti({particleCount:4, angle:60, spread:60, origin:{x:0, y:0.7}, colors});
+      confetti({particleCount:4, angle:120, spread:60, origin:{x:1, y:0.7}, colors});
+      if(Date.now() < end) raf = requestAnimationFrame(frame);
+    };
+    confetti({particleCount:120, spread:90, origin:{y:0.6}, colors});
+    frame();
+    return () => { cancelAnimationFrame(raf); confetti.reset(); };
+  },[]);
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -2434,11 +2490,11 @@ const ExamResults = ({results, exams, employees, questions, onClearAll}) => {
   }
 
   const exportExcel = () => {
-    const head = ['Họ và tên','Đơn vị','Điểm (%)','Số câu đúng','Tổng câu','Kết quả','Thời gian làm bài','Ngày thi'];
+    const head = ['Họ và tên','Đơn vị','Điểm (%)','Số câu đúng','Tổng câu','Kết quả','Thời gian làm bài','Ngày thi','Số lần rời màn hình'];
     const body = rows.map(r=>{
       const emp = employees.find(e=>e.id===r.empId);
       const ok = exam && r.score >= exam.pass;
-      return [emp?.name||'(Đã xóa)', emp?.dept||'', r.score, r.correct, totalQ, ok?'Đạt':'Không đạt', fmtTime(r.timeTaken), r.date];
+      return [emp?.name||'(Đã xóa)', emp?.dept||'', r.score, r.correct, totalQ, ok?'Đạt':'Không đạt', fmtTime(r.timeTaken), r.date, r.leaves ?? '--'];
     });
     const ws = XLSX.utils.aoa_to_sheet([
       ['KẾT QUẢ THI: '+(exam?.title||'')],
@@ -2446,8 +2502,8 @@ const ExamResults = ({results, exams, employees, questions, onClearAll}) => {
       [],
       head, ...body,
     ]);
-    ws['!cols']=[{wch:22},{wch:18},{wch:10},{wch:12},{wch:10},{wch:14},{wch:16},{wch:14}];
-    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}];
+    ws['!cols']=[{wch:22},{wch:18},{wch:10},{wch:12},{wch:10},{wch:14},{wch:16},{wch:14},{wch:20}];
+    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:8}}];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Kết quả');
     const safeTitle = (exam?.title||'de_thi').replace(/[^\p{L}\p{N}]+/gu,'_').slice(0,40);
@@ -2472,7 +2528,7 @@ const ExamResults = ({results, exams, employees, questions, onClearAll}) => {
       ) : (
         <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-x-auto">
           <table className="w-full min-w-[640px]">
-            <thead><tr className="bg-slate-50">{['Thí sinh','Đơn vị','Điểm','Số câu đúng','Kết quả','Thời gian','Ngày thi'].map(h=><th key={h} className={`px-3 py-2 text-xs font-medium text-slate-400 uppercase ${h==='Kết quả'?'text-center':'text-left'}`}>{h}</th>)}</tr></thead>
+            <thead><tr className="bg-slate-50">{['Thí sinh','Đơn vị','Điểm','Số câu đúng','Kết quả','Thời gian','Ngày thi','Rời màn hình'].map(h=><th key={h} className={`px-3 py-2 text-xs font-medium text-slate-400 uppercase ${h==='Kết quả'?'text-center':'text-left'}`}>{h}</th>)}</tr></thead>
             <tbody>
               {rows.map(r=>{
                 const emp=employees.find(e=>e.id===r.empId);
@@ -2486,6 +2542,11 @@ const ExamResults = ({results, exams, employees, questions, onClearAll}) => {
                     <td className="px-3 py-2 text-center"><Badge ok={ok}/></td>
                     <td className="px-3 py-2 text-xs text-slate-500">{fmtTime(r.timeTaken)}</td>
                     <td className="px-3 py-2 text-xs text-slate-400">{r.date}</td>
+                    <td className="px-3 py-2 text-xs">
+                      {r.leaves==null ? <span className="text-slate-300">--</span>
+                        : r.leaves===0 ? <span className="text-slate-500">0</span>
+                        : <span className={`px-2 py-0.5 rounded-full font-medium ${r.leaves>=MAX_LEAVES?'bg-red-100 text-red-700':'bg-amber-100 text-amber-700'}`}>{r.leaves>=MAX_LEAVES?`${r.leaves} • Bị nộp bài`:r.leaves}</span>}
+                    </td>
                   </tr>
                 );
               })}
