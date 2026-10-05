@@ -2253,7 +2253,7 @@ const EmblemSvg = ({size=100}) => {
 
 // Quốc huy: ưu tiên file ảnh trong public/, không có thì tự vẽ bằng SVG.
 // Đặt file của bạn vào public/ với một trong các tên dưới đây (hoặc sửa lại danh sách).
-const EMBLEM_SRCS = ['/bvqy4.jpg'];
+const EMBLEM_SRCS = ['/bvqy4.png'];
 const Emblem = ({size=100, className=''}) => {
   const [tried, setTried] = useState(0);
   if (tried >= EMBLEM_SRCS.length) return <EmblemSvg size={size}/>;
