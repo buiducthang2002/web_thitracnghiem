@@ -1875,8 +1875,57 @@ const EmpHome = ({user, exams, results, onStart}) => {
 };
 
 // ── MY RESULTS ──
-const MyResults = ({user, exams, results}) => {
-  const my = results.filter(r=>r.empId===user.id);
+const MyResults = ({user, exams, questions, results}) => {
+  const [openId, setOpenId] = useState(null);
+  const fmtTime = (t) => t!=null ? `${Math.floor(t/60)}p${String(t%60).padStart(2,'0')}s` : '--';
+  const my =results.filter(r=>r.empId===user.id);
+
+  const attempt = my.find(r=>r.id===openId);
+  if (attempt) {
+    const exam = exams.find(e=>e.id===attempt.examId);
+    const hasSnapshot = Array.isArray(attempt.questionSnapshot);
+    const reviewQuestions = hasSnapshot ? attempt.questionSnapshot : (exam?.qIds || []).map(id=>(questions||[]).find(q=>q.id===id));
+    const answers = Array.isArray(attempt.answers) ? attempt.answers : [];
+    // Bài cũ chỉ lưu vị trí đáp án; thiếu câu hỏi thì không thể đối chiếu chính xác.
+    const canMap = hasSnapshot || (reviewQuestions.every(Boolean) && reviewQuestions.length===answers.length);
+    return (
+      <div>
+        <button onClick={()=>setOpenId(null)} className="flex items-center gap-1 text-sm text-slate-500 hover:text-emerald-600 mb-3"><ArrowLeft size={15}/>Quay lại kết quả</button>
+        <h1 className="text-lg md:text-xl font-bold text-slate-800">{exam?.title || 'Đề thi đã xóa'}</h1>
+        <p className="text-slate-500 text-sm mt-1 mb-4">{attempt.date} • {fmtTime(attempt.timeTaken)} • {attempt.score}% • {attempt.correct} câu đúng</p>
+
+        {!canMap || answers.length===0 ? (
+          <p className="bg-white border border-slate-200 rounded-xl p-5 text-slate-600">Không đủ dữ liệu để hiển thị bài làm của bạn.</p>
+        ) : (
+          <div className="space-y-4">
+            {reviewQuestions.map((q,index)=>{
+              const selected = answers[index];
+              const answered = Number.isInteger(selected) && selected>=0 && selected<q.opts.length;
+              const correct = answered && selected===q.ans;
+              return (
+                <section key={index} className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <h2 className="font-semibold text-slate-800">Câu {index+1}</h2>
+                    <span className={`text-xs font-medium ${correct?'text-emerald-700':answered?'text-red-600':'text-slate-500'}`}>{correct?'Đúng':answered?'Sai':'Chưa trả lời'}</span>
+                  </div>
+                  <p className="text-slate-800 whitespace-pre-wrap mb-3">{q.text}</p>
+                  <div className="space-y-2">
+                    {q.opts.map((option,i)=>(
+                      <div key={i} className={`border rounded-lg p-3 text-sm whitespace-pre-wrap ${i===selected?(correct?'bg-emerald-50 border-emerald-300 text-emerald-900':'bg-red-50 border-red-300 text-red-800'):'border-slate-200 text-slate-600'}`}>
+                        <span className="font-semibold">{OPT_LETTERS[i]}. </span>{option}
+                        {i===selected && <span className="block text-xs font-semibold mt-1">Bạn đã chọn</span>}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="mb-5"><h1 className="text-xl font-bold text-slate-800">Kết quả của tôi</h1><p className="text-slate-500 text-sm">Lịch sử thi và điểm số</p></div>
@@ -1885,7 +1934,7 @@ const MyResults = ({user, exams, results}) => {
       ):(
         <div className="space-y-3">
           {my.map(r=>{const exam=exams.find(e=>e.id===r.examId);const ok=exam&&r.score>=exam.pass;return(
-            <div key={r.id} className="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center gap-4">
+            <div key={r.id} onClick={()=>setOpenId(r.id)} className="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center gap-4 cursor-pointer hover:border-emerald-300 hover:shadow transition-all">
               <div className={`w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 ${ok?'bg-emerald-100':'bg-red-100'}`}>
                 <span className={`text-lg font-bold ${ok?'text-emerald-600':'text-red-600'}`}>{r.score}%</span>
               </div>
@@ -2734,7 +2783,7 @@ export default function App() {
   };
   const empViews = {
     home:    <EmpHome user={user} exams={exams} results={results} onStart={startExam}/>,
-    results: <MyResults user={user} exams={exams} results={results}/>,
+    results: <MyResults user={user} exams={exams} questions={questions} results={results}/>,
   };
 
   return (
