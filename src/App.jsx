@@ -2371,8 +2371,13 @@ const Login = ({onLogin, employees}) => {
           </button>
         </form>
 
-        <div className="mt-6 text-center text-slate-400 text-xs">
-          © 2026 Ban công nghệ thông tin · Bệnh viện Quân y 4
+        <div className="mt-6 flex justify-center">
+          <div className="group relative inline-block text-center text-slate-400 text-xs cursor-default">
+            © 2026 Ban công nghệ thông tin · Bệnh viện Quân y 4
+            <span className="pointer-events-none absolute left-1/2 bottom-full mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-3 py-1.5 text-xs text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+              Designed, built, and maintained by Bui Duc Thang
+            </span>
+          </div>
         </div>
       </div>
     </div>
