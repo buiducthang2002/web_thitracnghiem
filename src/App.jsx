@@ -77,7 +77,7 @@ const Sidebar = ({role, active, setActive, user, onLogout, rail, setRail}) => {
       <div className={`hidden md:flex ${rail?'w-[78px]':'w-[168px]'} bg-white h-screen flex-col fixed left-0 top-0 z-10 border-r border-slate-200/80 transition-[width] duration-200`}>
         <div className="py-5 flex flex-col items-center gap-1.5 flex-shrink-0">
           <Emblem size={rail?52:76}/>
-          {!rail && <div className="text-[10px] font-bold text-[#0B4F32] text-center leading-tight px-2">BỆNH VIỆN QUÂN Y 4</div>}
+          {!rail && <div className="text-[11px] font-extrabold tracking-wide text-[#0B4F32] text-center leading-tight px-2">BỆNH VIỆN QUÂN Y 4</div>}
         </div>
 
         <nav className="flex-1 px-2.5 space-y-1.5 relative">
@@ -2031,9 +2031,11 @@ const ExamScreen = ({user, exam, questions, onFinish}) => {
   const [forcedEnd, setForcedEnd] = useState(false);
 
   useEffect(()=>{
+    let lastLeaveAt = 0;
     const onLeave = () => {
       if(awayRef.current || doneRef.current) return; // blur + visibilitychange có thể bắn cùng lúc
       awayRef.current = true;
+      lastLeaveAt = Date.now();
       leaveCount.current += 1;
       if(leaveCount.current >= MAX_LEAVES){ setForcedEnd(true); submitRef.current(ansRef.current); }
       else setWarned(true);
@@ -2043,10 +2045,25 @@ const ExamScreen = ({user, exam, questions, onFinish}) => {
     document.addEventListener('visibilitychange', onVis);
     window.addEventListener('blur', onLeave);
     window.addEventListener('focus', onBack);
+    // Trên điện thoại (Zalo, Safari iOS...) mở trình chuyển ứng dụng / thanh thông báo
+    // có thể không bắn blur/visibilitychange: dùng thêm pagehide/pageshow
+    window.addEventListener('pagehide', onLeave);
+    window.addEventListener('pageshow', onBack);
+    // Dự phòng: trang bị treo khi ra khỏi ứng dụng nên đồng hồ nhảy cóc một khoảng dài
+    let lastTick = Date.now();
+    const gap = setInterval(()=>{
+      const now = Date.now();
+      const suspended = now - lastTick > 3000;
+      lastTick = now;
+      if(suspended && lastLeaveAt < now - 3000){ awayRef.current = false; onLeave(); }
+    },1000);
     return () => {
+      clearInterval(gap);
       document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('blur', onLeave);
       window.removeEventListener('focus', onBack);
+      window.removeEventListener('pagehide', onLeave);
+      window.removeEventListener('pageshow', onBack);
     };
   },[]);
 
@@ -2415,7 +2432,7 @@ const ExamResults = ({results, exams, employees, questions, onClearAll}) => {
       <div>
         {clearModal}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
-          <div><h1 className="text-lg md:text-xl font-bold text-slate-800">Kết quả thi</h1><p className="text-slate-500 text-xs md:text-sm mt-0.5">Chọn một đề thi để xem danh sách người thi và kết quả</p></div>
+          <div><h1 className="text-lg md:text-xl font-bold text-slate-700">Kết quả thi</h1><p className="text-slate-500 text-xs md:text-sm mt-0.5">Chọn một đề thi để xem danh sách người thi và kết quả</p></div>
           {results.length>0 && (
             <button onClick={()=>setConfirmClear(true)} className="flex items-center gap-2 border border-red-200 text-red-600 px-3 py-2 rounded-lg hover:bg-red-50 text-sm font-medium self-start"><Trash2 size={15}/>Xóa tất cả kết quả</button>
           )}
